@@ -1,13 +1,136 @@
 from pyomo.environ import *
+import math
 from _13_nodes_distribution_network import *
 import pandas as pd
 import time
+import matplotlib.pyplot as plt
 import os
-import argparse
+import multiprocessing as mp
+def Draw_Grid(U=None,W=None):
+    if W is None:
+        W = [0] * len(coordinate)
+    elif len(W) != len(coordinate):
+        W = [0] * len(coordinate)
+    # 根据W值设置颜色
+    colors = ['blue' if w == 0 else 'red' for w in W]
 
+    # 设置中文字体
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']  # 用来正常显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
+    # 分离坐标
+    x = [p[0] for p in coordinate]
+    y = [p[1] for p in coordinate]
+
+    # 分别绘制圆点和三角形，以便添加图例
+    circle_x = [x[i] for i in range(len(x)) if n__wind[i] == 0 and n__pv[i]==0]
+    circle_y = [y[i] for i in range(len(y)) if n__wind[i] == 0 and n__pv[i]==0]
+    triangle_x = [x[i] for i in range(len(x)) if n__wind[i] == 1 or n__pv[i]==1]
+    triangle_y = [y[i] for i in range(len(y)) if n__wind[i] == 1 or n__pv[i]==1]
+
+
+    # 设置颜色
+    colors = ['blue' if w == 0 else 'red' for w in W]
+    colors_circle=[colors[i] for i in range(len(colors)) if n__wind[i] == 0 and n__pv[i]==0]
+    colors_triangle =[colors[i] for i in range(len(colors)) if n__wind[i] == 1 or n__pv[i]==1]
+
+    # 绘图
+    fig, ax = plt.subplots(figsize=(12, 10))
+
+    edges=[]
+    if U is not None:
+        for i in range(len(U)):
+            if U[i] == 1:
+                edges.append(Branch[i])
+
+    # 绘制边
+    if edges is not None:
+        for edge in edges:
+            if isinstance(edge, (tuple, list)) and len(edge) == 2:
+                i, j = edge
+                # i,j直接从0开始，不需要减1
+                xi, yi = coordinate[i]
+                xj, yj = coordinate[j]
+
+                # 计算两点之间的距离
+                dist = math.sqrt((xj - xi) ** 2 + (yj - yi) ** 2)
+
+                # 如果两点距离较远，使用弯曲曲线
+                if dist > q * 1.5:
+                    # 计算中点
+                    mx = (xi + xj) / 2
+                    my = (yi + yj) / 2
+
+                    # 计算垂直方向偏移
+                    dx = xj - xi
+                    dy = yj - yi
+                    perp_x = -dy
+                    perp_y = dx
+                    length = math.sqrt(perp_x ** 2 + perp_y ** 2)
+                    if length > 0:
+                        perp_x /= length
+                        perp_y /= length
+
+                    # 弯曲程度
+                    curvature = dist * 0.3
+                    offset_x = perp_x * curvature
+                    offset_y = perp_y * curvature
+
+                    # 贝塞尔曲线控制点
+                    ctrl1_x = mx - offset_x * 0.5
+                    ctrl1_y = my - offset_y * 0.5
+                    ctrl2_x = mx + offset_x * 0.5
+                    ctrl2_y = my + offset_y * 0.5
+
+                    # 绘制贝塞尔曲线
+                    from matplotlib.path import Path
+                    import matplotlib.patches as patches
+
+                    verts = [(xi, yi), (ctrl1_x, ctrl1_y), (ctrl2_x, ctrl2_y), (xj, yj)]
+                    codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+                    path = Path(verts, codes)
+                    patch = patches.PathPatch(path, facecolor='none', edgecolor='gray',
+                                              linewidth=1.5, alpha=0.6)
+                    ax.add_patch(patch)
+                else:
+                    # 距离较近，画直线
+                    ax.plot([xi, xj], [yi, yj], 'gray', linewidth=1.5, alpha=0.6)
+
+    # # 绘制点
+    # ax.scatter(x, y, c=colors, s=200, edgecolors='black', linewidth=1.5, zorder=5)
+
+    # 绘制圆点
+    if circle_x:
+        ax.scatter(circle_x, circle_y, marker='o', c=colors_circle, s=150,
+                    edgecolors='black', linewidth=1.5, zorder=5, label='n[i]=0 (圆点)')
+
+        # 绘制三角形
+    if triangle_x:
+        ax.scatter(triangle_x, triangle_y, marker='^', c=colors_triangle, s=150,
+                    edgecolors='black', linewidth=1.5, zorder=5, label='n[i]=1 (三角形)')
+
+    # 添加标签（节点编号从0开始）
+    for i, (xi, yi) in enumerate(coordinate):
+        ax.annotate(str(i), (xi, yi), xytext=(8, 8), textcoords='offset points',
+                    fontsize=12, fontweight='bold')
+
+    # 设置图形
+    ax.grid(True, alpha=0.3)
+    margin = q * 0.5
+    ax.set_xlim(-margin, max(x) + margin)
+    ax.set_ylim(-margin, max(y) + margin)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title(f'13 Points (Nodes 0-12, q={q})', fontsize=14)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+
+    plt.tight_layout()
+    plt.show()
+    pass
 
 
 def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
+    data = get_data(S, Edges, Gain_DG)
 
     model = ConcreteModel()
 
@@ -21,33 +144,28 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     model.E = Set(dimen=2, initialize=Edges)
 
     # VSC
-    link_L, list_L = get_L(S, Edges)
-    model.VSC = Set(initialize=list_L)
+    model.VSC = Set(initialize=data['VSC']['list'])
 
     # ========= 参数 =========
-    G_matrix, B_matrix = get_Y(S, Edges)
 
-    model.G = Param(model.N, model.N, initialize=G_matrix, default=0)
-    model.B = Param(model.N, model.N, initialize=B_matrix, default=0)
-    model.R = Param(model.N, model.N, initialize=get_R1(S, Edges), default=0)
+    model.G = Param(model.N, model.N, initialize=data['G'], default=0)
+    model.B = Param(model.N, model.N, initialize=data['B'], default=0)
+    model.R = Param(model.N, model.N, initialize=data['R'], default=0)
 
+    model.Pd = Param(model.N, model.t, initialize=data['load_P'], default=0)
+    model.Qd = Param(model.N, model.t, initialize=data['load_Q'], default=0)
 
+    model.Pmax_Buy = Param(model.N, model.t, initialize=data['buy_P'], default=0)
 
-    load_P, load_Q = get_Load()
-    model.Pd = Param(model.N, model.t, initialize=load_P, default=0)
-    model.Qd = Param(model.N, model.t, initialize=load_Q, default=0)
+    model.Pmax_DG = Param(model.N, model.t, initialize=data['DG_P'], default=0)
 
-    model.Pmax_Buy = Param(model.N, model.t, initialize=get_Buy(), default=0)
-
-    model.Pmax_DG = Param(model.N, model.t, initialize=get_DG(Gain_DG)[0], default=0)
-
-    model.Pmax_Ess = Param(model.N, model.t, initialize=get_Ess(), default=0)
+    model.Pmax_Ess = Param(model.N, model.t, initialize=data['ess_P'], default=0)
 
     # model.SOC_init = Param(model.N, initialize={5: 0.5}, default=0)
 
     # 映射
-    model.map_ac = Param(model.VSC, model.N, initialize=link_L[0], default=0)
-    model.map_dc = Param(model.VSC, model.N, initialize=link_L[1], default=0)
+    model.map_ac = Param(model.VSC, model.N, initialize=data['VSC']['ac'], default=0)
+    model.map_dc = Param(model.VSC, model.N, initialize=data['VSC']['dc'], default=0)
 
     # ========= 变量 =========
     model.V = Var(model.N, model.t, bounds=(0.9, 1.1))
@@ -252,107 +370,132 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
 
     return str(result.solver.termination_condition),value(model.obj)
 
-def get_Y(S,Edges):
-    G_matrix={}
-    B_matrix={}
-    for i,j in Edges:
-        R = r_line[i][j][0]
-        X = x_line[i][j][0]
-        G_matrix[(i,j)]=-R / (R ** 2 + X ** 2)
-        B_matrix[(i,j)]=X / (R ** 2 + X ** 2)
+
+def get_data(S,Edges,Gain_DG):
+    data={}
+
+    # ---------- 1. 线路导纳 ----------
+    G = {}
+    B = {}
+    for i, j in Edges:
+        R, X = r_line[i][j][0], x_line[i][j][0]
+        denom = R ** 2 + X ** 2
+        G[(i, j)] = -R / denom
+        B[(i, j)] = X / denom
+
+
+    # ---------- 2. 节点自导纳 ----------
     for node in nodes:
-        Ri=0
-        Xi=0
-        for i,j in Edges:
-            if i==node :
-                R = r_line[i][j][0]
-                X = x_line[i][j][0]
-                if S[i] ==0 and S[j]==0:
-                    Ri+=R / (R ** 2 + X ** 2)
-                    Xi+=-X / (R ** 2 + X ** 2)
-        G_matrix[(node, node)] = Ri
-        B_matrix[(node, node)] = Xi
-    return G_matrix, B_matrix
+        Ri = Xi = 0
+        for i, j in Edges:
+            if i == node and S[i] == 0 and S[j] == 0:
+                R, X = r_line[i][j][0], x_line[i][j][0]
+                denom = R**2 + X**2
+                Ri += R / denom
+                Xi += -X / denom
 
-def get_R1(S,Edges):
-    R_matrix= {}
-    for i,j in Edges:
-        if S[i] != S[j]:
-            R=r_line[i][j][1]
-        else:
-            R = r_line[i][j][0]
+        G[(node, node)] = Ri
+        B[(node, node)] = Xi
 
-        R_matrix[(i,j)]=1/R
-    return R_matrix
+    data['G'], data['B'] = G, B
 
-def get_Load():
-    load_P= {}
-    load_Q={}
+    # ---------- 3. 电阻矩阵 ----------
+    data['R'] = {
+        (i, j): 1 / (r_line[i][j][1] if S[i] != S[j] else r_line[i][j][0])
+        for i, j in Edges
+    }
+
+    # ---------- 4. 负荷 ----------
+    data['load_P'] = {
+        (i, t): n_Load[i] * P_load[t] / S_base
+        for i in nodes for t in times
+    }
+    data['load_Q'] = {
+        (i, t): n_Load[i] * Q_load[t] / S_base
+        for i in nodes for t in times
+    }
+
+    # ---------- 5. DG ----------
+    DG_P, DG_Q = {}, {}
     for i in nodes:
+        if n_DG[i] == 0:
+            continue
+
+        # 系数 p
+        if i in [7, 12]:
+            p = 2 / 9
+        elif i in [8, 10]:
+            p = 2.5 / 9
+        else:
+            p = 0
+
         for t in times:
-            load_P[(i, t)]=n_Load[i]*P_load[t]/S_base
-            load_Q[(i, t)]=n_Load[i]*Q_load[t]/S_base
-    return load_P, load_Q
+            a = min(n_DG[i] * DG_curve[t] * p * Gain_DG, 3)
+            b = (9 - a ** 2) ** 0.5  # 3^2 = 9
 
-def get_DG(Gain_DG):
-    max_DG = []
-    max_DG.append({})  # 添加第一个空子列表
-    max_DG.append({})
-    for i in nodes:
-        if i in [7,12]:
-            p=2 / 9
-        elif i in [8,10]:
-            p=2.5 / 9
-        else:
-            p=0
-        if n_DG[i]!=0:
-            for t in times:
-                a0=n_DG[i] * DG_curve[t] * p * Gain_DG
-                if a0>=3:
-                    a=3
-                else:
-                    a=a0
+            DG_P[(i, t)] = a / S_base
+            DG_Q[(i, t)] = b / S_base
 
-                b=(3**2-a**2)** 0.5
-                max_DG[0][(i,t)]=a/S_base
-                max_DG[1][(i,t)]=b/S_base
-    return max_DG
+    data['DG_P'], data['DG_Q'] = DG_P, DG_Q
 
-def get_Buy():
-    Pmax_buy={}
-    for t in times:
-        Pmax_buy[(0,t)]=1
-    return Pmax_buy
+    # ---------- 6. 外部购电 ----------
+    data['buy_P'] = {(0, t): 1 for t in times}
 
-def get_Ess():
-    max_ess={}
-    for t in times:
-        max_ess[(5,t)]=0.25
-    return max_ess
+    # ---------- 7. 储能 ----------
+    data['ess_P'] = {(5, t): 0.25 for t in times}
 
-def get_L(S,Edges):
-    L=[]
-    link=[]
-    link.append({})
-    link.append({})
-    k=0
-    visted=[]
-    for i,j in Edges:
-        if S[i] != S[j] and (j,i) not in visted:
-            visted.append((i,j))
-            L.append((i,j))
-            if S[i] ==0:
-                link[0][(k,i)]=1
-                link[1][(k,j)]=1
+    # ---------- 8. VSC ----------
+    L = []
+    VSC = {'ac': {}, 'dc': {}}
+    visited = set()
+    k = 0
+
+    for i, j in Edges:
+        if S[i] != S[j] and (j, i) not in visited:
+            visited.add((i, j))
+            L.append((i, j))
+
+            if S[i] == 0:
+                VSC['ac'][(k, i)] = 1
+                VSC['dc'][(k, j)] = 1
             else:
-                link[0][(k,j)]=1
-                link[1][(k,i)]=1
-            k=k+1
+                VSC['ac'][(k, j)] = 1
+                VSC['dc'][(k, i)] = 1
 
-    return link,list(range(int(len(L))))
+            k += 1
+
+    VSC['list'] = list(range(k))
+
+    data['VSC'], data['L'] = VSC, L
+    return data
+
 def save_csv(data,new_path):
     new_df = pd.DataFrame([data])
     new_df.to_csv(new_path, mode='a', header=False, index=False, encoding='utf-8')
+def fun2():
+    data1 = pd.read_csv('./snap/50万样本_250.csv')
+    X = data1.iloc[:, :13].values
+    Y = data1.iloc[:, 13:33 + 13].values
+    Z = data1.iloc[:, -1].values
+    print(X.shape, Y.shape, Z.shape)
+
+
+    start = time.time()
+    for d in range(1):
+        S = X[d]
+        a = Y[d]
+        Gain = Z[d]
+        print(S,a,Gain)
+        Edges = []
+        for k in range(len(Branch)):
+            if a[k] == 1:
+                i, j = Branch[k]
+                Edges.append((i, j))
+                Edges.append((j, i))
+        # Draw_Grid(a, S)
+        print(d, PYOMO_Solve(S, Edges, Gain))
+        print('求解耗时', time.time() - start)
+        start = time.time()
 
 def fun3(path):
     base, ext = path.rsplit('.', 1)
@@ -381,6 +524,7 @@ def fun3(path):
                 Edges.append((i, j))
                 Edges.append((j, i))
 
+        # B.Draw_Grid(a, S)
         try:
             status,obj = PYOMO_Solve(S, Edges, Gain)
         except Exception as e:
@@ -392,28 +536,10 @@ def fun3(path):
         start = time.time()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='这是一个示例程序')
 
-    # 添加位置参数（必须提供）
-    parser.add_argument('input', help='输入文件路径')
-    #
-    # # 添加可选参数
-    # parser.add_argument('--output', '-o', help='输出文件路径')
-    # parser.add_argument('--verbose', '-v', action='store_true', help='显示详细信息')
-    # parser.add_argument('--count', '-c', type=int, default=1, help='重复次数（默认1）')
-
-    # 解析参数
-    args = parser.parse_args()
-
-    # print(f"输入文件: {args.input}")
-    # if args.output:
-    #     print(f"输出文件: {args.output}")
-    # if args.verbose:
-    #     print("详细模式开启")
-    # print(f"重复次数: {args.count}")
-
-    fun3(args.input)
-    # fun3('./snap/50万样本_198.csv')
+    fun3('./snap/50万样本_197.csv')
+    fun3('./snap/50万样本_196.csv')
+    fun3('./snap/50万样本_195.csv')
 
 
 
