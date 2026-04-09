@@ -44,23 +44,24 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     model.map_dc = Param(model.VSC, model.N, initialize=data['VSC']['dc'], default=0)
 
     # ========= 变量 =========
-    model.V = Var(model.N, model.t, bounds=(0.9, 1.1))
-    model.theta = Var(model.N, model.t, bounds=(-3.14, 3.14))
-    model.Vdc = Var(model.DC, model.t, bounds=(0.9, 1.1))
+    model.V = Var(model.N, model.t, bounds=(0.9, 1.1), initialize=1)
+    model.theta = Var(model.N, model.t, bounds=(-3.14, 3.14), initialize=0)
+    model.Vdc = Var(model.DC, model.t, bounds=(0.9, 1.1), initialize=1)
 
     model.P = Var(model.AC, model.AC, model.t, bounds=(-0.25, 0.25))
     model.Q = Var(model.AC, model.AC, model.t, bounds=(-0.25, 0.25))
 
-    model.P_DG = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pmax_DG[i,t]))
-    model.Q_DG = Var(model.N, model.t, bounds=(0, 0.3))
+    model.P_DG = Var(model.N, model.t, bounds=lambda m, i, t: (0, m.Pmax_DG[i, t]),
+                     initialize=lambda m, i, t: m.Pmax_DG[i, t] * 0.9)
+    model.Q_DG = Var(model.N, model.t, bounds=(0, 0.3), initialize=0)
 
-    model.P_buy = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pmax_Buy[i,t]))
-    model.Q_buy = Var(model.N, model.t, bounds=lambda m,i,t: (-m.Pmax_Buy[i,t], m.Pmax_Buy[i,t]))
+    model.P_buy = Var(model.N, model.t, bounds=lambda m, i, t: (0, m.Pmax_Buy[i, t]))
+    model.Q_buy = Var(model.N, model.t, bounds=lambda m, i, t: (-m.Pmax_Buy[i, t], m.Pmax_Buy[i, t]))
 
-    model.P_ess_ch = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pmax_Ess[i,t]))
-    model.P_ess_dis = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pmax_Ess[i,t]))
+    model.P_ess_ch = Var(model.N, model.t, bounds=lambda m, i, t: (0, m.Pmax_Ess[i, t]), initialize=0)
+    model.P_ess_dis = Var(model.N, model.t, bounds=lambda m, i, t: (0, m.Pmax_Ess[i, t]), initialize=0)
 
-    model.SOC = Var(model.N, model.t, bounds=(0.1, 0.9))
+    model.SOC = Var(model.N, model.t, bounds=(0.1, 0.9), initialize=0.5)
 
     model.P_in = Var(model.N, model.t, bounds=(-0.7, 0.7))
     model.Q_in = Var(model.N, model.t, bounds=(-0.7, 0.7))
@@ -71,8 +72,8 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
 
     model.P_vsc_loss = Var(model.VSC, model.t, bounds=(0, None))
 
-    model.P_load = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pd[i,t]))
-    model.Q_load = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Qd[i,t]))
+    model.P_load = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Pd[i,t]), initialize=lambda m,i,t: m.Pd[i,t]*0.9)
+    model.Q_load = Var(model.N, model.t, bounds=lambda m,i,t: (0, m.Qd[i,t]), initialize=lambda m,i,t: m.Qd[i,t]*0.9)
 
     # ========= 约束 =========
 
