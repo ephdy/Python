@@ -414,9 +414,12 @@ def fun3(path):
 
 if __name__ == '__main__':
 
-    fun3('./snap/50万样本_197.csv')
-    fun3('./snap/50万样本_196.csv')
-    fun3('./snap/50万样本_195.csv')
+    fun3('./snap/50万样本_1.csv')
+    fun3('./snap/50万样本_2.csv')
+    fun3('./snap/50万样本_3.csv')
+    fun3('./snap/50万样本_4.csv')
+    fun3('./snap/50万样本_5.csv')
+    fun3('./snap/50万样本_6.csv')
 
 
 
