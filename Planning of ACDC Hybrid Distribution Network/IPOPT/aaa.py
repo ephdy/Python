@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import numpy as np
 import os
+
 def get_data(S,Edges):
     data={}
 
@@ -39,6 +40,7 @@ def get_data(S,Edges):
     }
 
     return data
+
 def get_data2(S,Edges,U):
     J=np.ones((13,33))
     a=J@np.diag(U)
@@ -72,8 +74,8 @@ def fun3(path):
                 i, j = Branch[k]
                 Edges.append((i, j))
                 Edges.append((j, i))
-        get_data2(S,Edges,U)
-        # get_data(S, Edges)
+        # get_data2(S,Edges,U)
+        get_data(S, Edges)
         print('求解耗时', time.time() - start)
         start = time.time()
 

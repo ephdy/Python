@@ -18,13 +18,14 @@ def r2_metric(preds, dtrain):
     r2 = r2_score(labels, preds)
     return 'r2', r2
 
-data = pd.read_csv("受限邻接矩阵可行解.CSV")
+# data = pd.read_csv("可行解.CSV")
+data = pd.read_csv("Loss样本.CSV")
 
-X = data.iloc[:,:33].values
-y = data.iloc[:, -4].values
+X = data.iloc[:,:13+33+1].values
+y = data.iloc[:, -1].values
 # print(len(X[0]))
 # print(X[0])
-# print(y[0])
+print(y[0])
 # y = (y - 7e7) /1.2e8
 # y=(y-9e3)/2.3e4
 
@@ -136,14 +137,15 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=1000,
+    num_boost_round=3000,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止
     verbose_eval=100,  # 每10轮打印一次日志
     callbacks=[CustomMetricCallback(dtest, y_test, period=100)]
 )
-model.save_model('model1.ubj')
+model.save_model('model3.ubj')
+model.save_model('model3.json')
 tree_dump = model.get_dump(with_stats=True)
 with open('xgboost_trees.txt', 'w', encoding='utf-8') as f:
     for i, tree in enumerate(tree_dump):

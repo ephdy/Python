@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 # 添加项目根目录到 Python 路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 print(project_root)
@@ -11,10 +12,12 @@ from gurobi_ml import add_predictor_constr
 import gurobipy as gb
 import time
 
-def Grid_planning(path_XGB):
+def Grid_planning(path_XGB1,path_XGB2):
     print("Grid Planning")
-    XGB_model = xgb.Booster()
-    XGB_model.load_model(path_XGB)
+    XGB_model1 = xgb.Booster()
+    XGB_model1.load_model(path_XGB1)
+    XGB_model2 = xgb.Booster()
+    XGB_model2.load_model(path_XGB2)
     print("Loaded!")
     m=gb.Model('Grid_planning')
     # 定义节点类型变量
@@ -25,12 +28,14 @@ def Grid_planning(path_XGB):
     U = {}
     for i, j in H.Branch:
         U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
-
+    Gain = m.addVar(vtype=gb.GRB.CONTINUOUS, name="Gain")
+    m.addConstr(Gain==1, name="Gain")
+    fop =m.addVar(vtype=gb.GRB.CONTINUOUS, name="fop")
+    Loss =m.addVar(vtype=gb.GRB.CONTINUOUS, name="Loss")
     for node in range(H.n):
         m.addConstr(
             sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) <= H.L_max,
-            name=f"degree_{node}"
-        )
+            name=f"degree_{node}")
         m.addConstr(
             sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) >= H.L_min,
             name=f"degree_{node}"
@@ -69,15 +74,26 @@ def Grid_planning(path_XGB):
         m.addConstr(L[(i, j)] <= U[(i, j)])
 
     input_vars = []
+    for i in H.nodes:
+        input_vars.append(W[i])
     for i, j in H.Branch:
         input_vars.append(U[(i, j)])
+    input_vars.append(Gain)
     print('Add constraints')
     start_time = time.time()
-    pred_constr = add_predictor_constr(m, XGB_model, input_vars)
-    pred_sales = pred_constr.output
+    pred_constr1 = add_predictor_constr(m, XGB_model1, input_vars)
+    pred_sales1 = pred_constr1.output
+    m.addGenConstrExp(pred_sales1, fop, name="exp_constr1")
     end_time = time.time()
     elapsed = end_time - start_time
-    print(f"嵌入耗时: {elapsed:.2f} 秒")
+    print(f"嵌入1耗时: {elapsed:.2f} 秒")
+    start_time = time.time()
+    pred_constr2 = add_predictor_constr(m, XGB_model1, input_vars)
+    pred_sales2 = pred_constr2.output
+    m.addGenConstrExp(pred_sales2, Loss, name="exp_constr2")
+    end_time = time.time()
+    elapsed = end_time - start_time
+    print(f"嵌入2耗时: {elapsed:.2f} 秒")
     print('Added successfully')
 
     # 线路建设成本
@@ -98,11 +114,11 @@ def Grid_planning(path_XGB):
     C_cvt = H.c_c * S_c + H.c_v * S_vsc
 
     C_invest = C_line * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) + C_cvt * (pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_line)-1))
-    C_operation = pred_sales * H.N_d
+    C_operation = fop * H.N_d
 
     m.setParam('OutputFlag', 0)
     m.setParam("Threads", 0)
-    m.setObjective(C_invest + C_operation, gb.GRB.MINIMIZE)
+    m.setObjective(C_invest + C_operation+Loss, gb.GRB.MINIMIZE)
     print('start optimization')
     start_time = time.time()
     m.optimize()

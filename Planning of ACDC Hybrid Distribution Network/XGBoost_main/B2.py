@@ -22,15 +22,13 @@ print("=" * 80)
 # ==================== 1. 准备数据 ====================
 print("\n1. 准备数据...")
 
-data = pd.read_csv("训练数据_可行解1.csv")
+data = pd.read_csv("可行解.csv")
 
-X = data.iloc[:, 1:-5].values
-y = data.iloc[:, -5].values
-print(len(X[0]))
-y = (y - 7e7) /1.2e8
-# y=(y-9e3)/2.3e4
-
-y = np.log(y)
+X = data.iloc[:,:13+33+1].values
+y = data.iloc[:, -1].values
+print(X.shape)
+print(y[0])
+# y = np.log(y)
 
 # 划分数据集
 X_train, X_test, y_train, y_test = train_test_split(
@@ -53,7 +51,7 @@ def objective(trial):
     # 定义超参数搜索空间
     params = {
         # 核心参数
-        'n_estimators': trial.suggest_int('n_estimators', 50, 8000, step=50),
+        'n_estimators': trial.suggest_int('n_estimators', 50, 3000, step=50),
         'max_depth': trial.suggest_int('max_depth', 3, 15),
         'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
 
