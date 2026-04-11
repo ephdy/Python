@@ -137,7 +137,7 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=3000,
+    num_boost_round=2,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止
