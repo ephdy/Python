@@ -1,14 +1,135 @@
 from pyomo.environ import *
-
+import numpy as np
 from _13_nodes_distribution_network import *
 import pandas as pd
 import time
-
+import matplotlib.pyplot as plt
+import math
 import os
+def Draw_Grid(U=None,W=None):
+    if W is None:
+        W = [0] * len(coordinate)
+    elif len(W) != len(coordinate):
+        W = [0] * len(coordinate)
+    # 根据W值设置颜色
+    colors = ['blue' if w == 0 else 'red' for w in W]
+
+    # 设置中文字体
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei']  # 用来正常显示中文标签
+    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
+    # 分离坐标
+    x = [p[0] for p in coordinate]
+    y = [p[1] for p in coordinate]
+
+    # 分别绘制圆点和三角形，以便添加图例
+    circle_x = [x[i] for i in range(len(x)) if n__wind[i] == 0 and n__pv[i]==0]
+    circle_y = [y[i] for i in range(len(y)) if n__wind[i] == 0 and n__pv[i]==0]
+    triangle_x = [x[i] for i in range(len(x)) if n__wind[i] == 1 or n__pv[i]==1]
+    triangle_y = [y[i] for i in range(len(y)) if n__wind[i] == 1 or n__pv[i]==1]
+
+
+    # 设置颜色
+    colors = ['blue' if w == 0 else 'red' for w in W]
+    colors_circle=[colors[i] for i in range(len(colors)) if n__wind[i] == 0 and n__pv[i]==0]
+    colors_triangle =[colors[i] for i in range(len(colors)) if n__wind[i] == 1 or n__pv[i]==1]
+
+    # 绘图
+    fig, ax = plt.subplots(figsize=(12, 10))
+
+    edges=[]
+    if U is not None:
+        for i in range(len(U)):
+            if U[i] == 1:
+                edges.append(Branch[i])
+
+    # 绘制边
+    if edges is not None:
+        for edge in edges:
+            if isinstance(edge, (tuple, list)) and len(edge) == 2:
+                i, j = edge
+                # i,j直接从0开始，不需要减1
+                xi, yi = coordinate[i]
+                xj, yj = coordinate[j]
+
+                # 计算两点之间的距离
+                dist = math.sqrt((xj - xi) ** 2 + (yj - yi) ** 2)
+
+                # 如果两点距离较远，使用弯曲曲线
+                if dist > q * 1.5:
+                    # 计算中点
+                    mx = (xi + xj) / 2
+                    my = (yi + yj) / 2
+
+                    # 计算垂直方向偏移
+                    dx = xj - xi
+                    dy = yj - yi
+                    perp_x = -dy
+                    perp_y = dx
+                    length = math.sqrt(perp_x ** 2 + perp_y ** 2)
+                    if length > 0:
+                        perp_x /= length
+                        perp_y /= length
+
+                    # 弯曲程度
+                    curvature = dist * 0.3
+                    offset_x = perp_x * curvature
+                    offset_y = perp_y * curvature
+
+                    # 贝塞尔曲线控制点
+                    ctrl1_x = mx - offset_x * 0.5
+                    ctrl1_y = my - offset_y * 0.5
+                    ctrl2_x = mx + offset_x * 0.5
+                    ctrl2_y = my + offset_y * 0.5
+
+                    # 绘制贝塞尔曲线
+                    from matplotlib.path import Path
+                    import matplotlib.patches as patches
+
+                    verts = [(xi, yi), (ctrl1_x, ctrl1_y), (ctrl2_x, ctrl2_y), (xj, yj)]
+                    codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+                    path = Path(verts, codes)
+                    patch = patches.PathPatch(path, facecolor='none', edgecolor='gray',
+                                              linewidth=1.5, alpha=0.6)
+                    ax.add_patch(patch)
+                else:
+                    # 距离较近，画直线
+                    ax.plot([xi, xj], [yi, yj], 'gray', linewidth=1.5, alpha=0.6)
+
+    # # 绘制点
+    # ax.scatter(x, y, c=colors, s=200, edgecolors='black', linewidth=1.5, zorder=5)
+
+    # 绘制圆点
+    if circle_x:
+        ax.scatter(circle_x, circle_y, marker='o', c=colors_circle, s=150,
+                    edgecolors='black', linewidth=1.5, zorder=5, label='n[i]=0 (圆点)')
+
+        # 绘制三角形
+    if triangle_x:
+        ax.scatter(triangle_x, triangle_y, marker='^', c=colors_triangle, s=150,
+                    edgecolors='black', linewidth=1.5, zorder=5, label='n[i]=1 (三角形)')
+
+    # 添加标签（节点编号从0开始）
+    for i, (xi, yi) in enumerate(coordinate):
+        ax.annotate(str(i), (xi, yi), xytext=(8, 8), textcoords='offset points',
+                    fontsize=12, fontweight='bold')
+
+    # 设置图形
+    ax.grid(True, alpha=0.3)
+    margin = q * 0.5
+    ax.set_xlim(-margin, max(x) + margin)
+    ax.set_ylim(-margin, max(y) + margin)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title(f'13 Points (Nodes 0-12, q={q})', fontsize=14)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+
+    plt.tight_layout()
+    plt.show()
+    pass
 
 def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     data = get_data(S, Edges, Gain_DG)
-
     model = ConcreteModel()
 
     # ========= 集合 =========
@@ -255,10 +376,11 @@ def get_data(S,Edges,Gain_DG):
     G = {}
     B = {}
     for i, j in Edges:
-        R, X = r_line[i][j][0], x_line[i][j][0]
-        denom = R ** 2 + X ** 2
-        G[(i, j)] = -R / denom
-        B[(i, j)] = X / denom
+        if S[i] == 0 and S[j] == 0:
+            R, X = r_line[i][j][0], x_line[i][j][0]
+            denom = R ** 2 + X ** 2
+            G[(i, j)] = -R / denom
+            B[(i, j)] = X / denom
 
 
     # ---------- 2. 节点自导纳 ----------
@@ -278,8 +400,9 @@ def get_data(S,Edges,Gain_DG):
 
     # ---------- 3. 电阻矩阵 ----------
     data['R'] = {
-        (i, j): 1 / (r_line[i][j][1] if S[i] != S[j] else r_line[i][j][0])
+        (i, j): (1 / (r_line[i][j][0]))
         for i, j in Edges
+        if S[i] == 1 and S[j] == 1
     }
 
     # ---------- 4. 负荷 ----------
@@ -346,6 +469,31 @@ def get_data(S,Edges,Gain_DG):
     data['VSC'], data['L'] = VSC, L
     return data
 
+def get_data3(S=None,Edges=None,U=None):
+    A = np.zeros((13, 33))
+    yac = np.zeros(33, dtype=complex)
+    ydc = np.zeros(33)
+    for k in range(33):
+        a, b = Branch[k]
+        A[a, k] = 1
+        A[b, k] = -1
+        yac[k] = 1 / (r_line[a][b][0] + x_line[a][b][0] * 1j)
+        ydc[k] = 1 / r_line[a][b][0]
+    N1=np.diag(1-S)
+    N2=np.diag(S)
+    M=np.diag(U)
+    map1=np.zeros((33,13))
+    map2 = np.zeros((33, 13))
+    for k in range(len(Branch)):
+        i, j = Branch[k]
+        map1[k, i] = 1
+        map2[k, j] = 1
+    M1 = np.diag(map1 @ (1-S)) @ np.diag(map2 @ (1-S))
+    M2 = np.diag(map1 @ S) @ np.diag(map2 @ S)
+    A1 = A @ M @ M1
+    A2 = A @ M @ M2
+    return A1@np.diag(yac)@A1.T + A2 @ np.diag(ydc) @ A2.T
+
 def save_csv(data,new_path):
     new_df = pd.DataFrame([data])
     new_df.to_csv(new_path, mode='a', header=False, index=False, encoding='utf-8')
@@ -389,7 +537,7 @@ def fun3(path):
     else:
         ex = 0
     start = time.time()
-    for d in range(ex, len(Z)):
+    for d in range(1):
         S = X[d]
         U = Y[d]
         Gain = Z[d][0]
@@ -401,25 +549,27 @@ def fun3(path):
                 Edges.append((i, j))
                 Edges.append((j, i))
 
-        # B.Draw_Grid(a, S)
+
         try:
             status,obj = PYOMO_Solve(S, Edges, Gain)
         except Exception as e:
-            print(f"GAMS求解出错: {e}")
+            print(f"IPOPT求解出错: {e}")
             obj, status = 'None', 'None'  # 或设置默认值
         data = list(S) + list(U) + [Gain] + [status,obj]
-        save_csv(data, new_path)
+        print(data)
+        # Draw_Grid(U, S)
+        # save_csv(data, new_path)
         print('求解耗时', time.time() - start)
         start = time.time()
 
 if __name__ == '__main__':
 
     fun3('./snap/50万样本_1.csv')
-    fun3('./snap/50万样本_2.csv')
-    fun3('./snap/50万样本_3.csv')
-    fun3('./snap/50万样本_4.csv')
-    fun3('./snap/50万样本_5.csv')
-    fun3('./snap/50万样本_6.csv')
+    # fun3('./snap/50万样本_2.csv')
+    # fun3('./snap/50万样本_3.csv')
+    # fun3('./snap/50万样本_4.csv')
+    # fun3('./snap/50万样本_5.csv')
+    # fun3('./snap/50万样本_6.csv')
 
 
 

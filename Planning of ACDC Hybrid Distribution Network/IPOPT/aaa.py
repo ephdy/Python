@@ -186,7 +186,6 @@ def get_data2(S=None,Edges=None,U=None):
             elif S[a]==1 and S[b]==1:
                 ex_dc[k]=1
     Y=A@np.diag(yac*ex_ac-ydc*ex_dc)@A.T
-    print(Y)
     return Y
 
     # G = np.zeros(33)
@@ -199,6 +198,7 @@ def get_data2(S=None,Edges=None,U=None):
     #     B[k] = -X / denom
     # print(G)
     # print(B)
+
 def get_data3(S=None,Edges=None,U=None):
     A = np.zeros((13, 33))
     yac = np.zeros(33, dtype=complex)
@@ -209,11 +209,6 @@ def get_data3(S=None,Edges=None,U=None):
         A[b, k] = -1
         yac[k] = 1 / (r_line[a][b][0] + x_line[a][b][0] * 1j)
         ydc[k] = 1 / r_line[a][b][0]
-
-
-
-    N1=np.diag(1-S)
-    N2=np.diag(S)
     M=np.diag(U)
     map1=np.zeros((33,13))
     map2 = np.zeros((33, 13))
@@ -222,19 +217,12 @@ def get_data3(S=None,Edges=None,U=None):
         map1[k, i] = 1
         map2[k, j] = 1
     M1 = np.diag(map1 @ (1-S)) @ np.diag(map2 @ (1-S))
-    M2=np.diag(map1 @ S)@np.diag(map2 @ S)
-    # print(M1)
-    # print(np.sum(M1))
-    # print(np.sum(M2))
-    # for i in range (len(M1)):
-    #     if M12[i]==1:
-    #         print(Branch[i])
-    map2=np.zeros((33,13))
-    A1=A@M@M1
-    print(A1)
+    M2 = np.diag(map1 @ S) @ np.diag(map2 @ S)
+    A1 = A @ M @ M1
+    A2 = A @ M @ M2
     Yb1=A1@np.diag(yac)@A1.T
-
-    print(Yb1)
+    Yb2 = A2 @ np.diag(ydc) @ A2.T
+    return Yb1+Yb2
 
 
 def dict_to_matrix(d, n):
@@ -277,18 +265,24 @@ def fun3(path):
                 Edges.append((i, j))
                 Edges.append((j, i))
         Y2=get_data2(S,Edges,U)
+        start = time.time()
         data=get_data(S, Edges)
+        print('求解耗时', time.time() - start)
         G1=dict_to_matrix(data['G'], 13)
         B1=dict_to_matrix(data['B'], 13)
         R1=dict_to_matrix(data['R'], 13)
 
-        Y1=G1+B1*1j
-        # for i in range(13):
-        #     for j in range(13):
-        #         print(Y1[i,j],Y2[i,j])
-        get_data3(S,Edges,U)
+        d1=G1+B1*1j+R1
+
+
+        start = time.time()
+        d3=get_data3(S,Edges,U)
+        for i in range(13):
+            for j in range(13):
+                print(d1[i,j],d2[i,j])
+        print('求解耗时', time.time() - start)
         end = time.time()
-        Draw_Grid(U, S)
+        # Draw_Grid(U, S)
 
 
         print('求解耗时', time.time() - start)
