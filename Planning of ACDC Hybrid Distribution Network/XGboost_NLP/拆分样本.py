@@ -1,5 +1,5 @@
 import pandas as pd
-path="50万样本.csv"
+path="新样本.csv"
 df = pd.read_csv(path)
 name=path.split(".")[0]
 chunk_size = 20000
