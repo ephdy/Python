@@ -79,8 +79,12 @@ m.addConstr(S[0]==0)
 U = {}
 for i, j in H.Branch:
     U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
+mu0=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
+eps0=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
 mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
 eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
+m.addConstr(mu==0.1*mu0)
+m.addConstr(eps==eps0*0.1+0.1)
 
 #===============================规划约束=================================================
 for node in range(H.n):
@@ -162,7 +166,7 @@ for i in H.nodes:
 
 C_cvt = H.c_c * S_c + H.c_v * S_vsc
 
-C_invest = C_line * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) + C_cvt * (pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1))
+C_invest = C_line * H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) + C_cvt * H.r *(pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1))
 C_operation = fop * H.N_d
 
 
