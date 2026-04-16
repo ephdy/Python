@@ -22,9 +22,9 @@ print("=" * 80)
 # ==================== 1. 准备数据 ====================
 print("\n1. 准备数据...")
 
-data = pd.read_csv("可行解.csv")
+data = pd.read_csv("新样本可行解.CSV")
 
-X = data.iloc[:,:13+33+1].values
+X = data.iloc[:,:13+33+2].values
 y = data.iloc[:, -1].values
 print(X.shape)
 print(y[0])
@@ -51,7 +51,7 @@ def objective(trial):
     # 定义超参数搜索空间
     params = {
         # 核心参数
-        'n_estimators': trial.suggest_int('n_estimators', 50, 3000, step=50),
+        'n_estimators': trial.suggest_int('n_estimators', 50, 1000, step=50),
         'max_depth': trial.suggest_int('max_depth', 3, 15),
         'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
 
