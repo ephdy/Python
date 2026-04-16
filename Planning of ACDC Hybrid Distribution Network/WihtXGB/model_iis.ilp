@@ -1,0 +1,14 @@
+\ Model Grid_planning_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ L3_2_4: - S_2 - S_4 + L_2_4 <= 0
+ R246: S_2 = 0
+ R248: S_4 = 0
+ R264: U_2_4 = 0
+ LU3_2_4: - U_2_4 - L_2_4 + LU_2_4 <= -1
+Bounds
+Binaries
+ S_2 S_4 U_2_4 L_2_4 LU_2_4
+End

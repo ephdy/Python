@@ -201,7 +201,7 @@ fop=m.addVar()
 
 def load_biggs(m,fop):
     start_time = time.time()
-    model_json1 = load_xgb_json("model1.json")
+    model_json1 = load_xgb_json("../XGBoost_main/model1.json")
     # model_json2 = load_xgb_json("model2.json")
 
     n_features = 48
