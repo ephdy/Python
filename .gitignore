@@ -3,7 +3,10 @@
 *.txt
 .idea/
 .vscode/
-.rar
-.zip
-.json
-.mps
+*.rar
+*.zip
+*.json
+*.mps
+*.mps
+*.lp
+*.sol
