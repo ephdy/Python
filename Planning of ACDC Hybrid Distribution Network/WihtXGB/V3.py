@@ -1,9 +1,69 @@
 import xgboost as xgb
 import numpy as np
 import gurobipy as gb
-from gurobi_ml import add_predictor_constr
+import json
+
 import _13_nodes_distribution_network as H
 import time
+
+
+def extract_leaves_from_tree_array(tree, n_features):
+    """
+    适用于 split_indices 格式
+    """
+
+    split_indices = tree["split_indices"]
+    split_conditions = tree["split_conditions"]
+    left_children = tree["left_children"]
+    right_children = tree["right_children"]
+    base_weights = tree["base_weights"]  # 叶子值
+
+    leaves = []
+
+    def dfs(nid, lower, upper):
+        # ========= 判断叶子 =========
+        if left_children[nid] == -1:
+            value = base_weights[nid]
+            leaves.append((lower.copy(), upper.copy(), value))
+            return
+
+        # ========= 取 split =========
+        f = split_indices[nid]
+        thresh = split_conditions[nid]
+
+        # ========= 左子树（≤）=========
+        new_upper = upper.copy()
+        new_upper[f] = min(new_upper[f], thresh-0.005)
+        dfs(left_children[nid], lower, new_upper)
+
+        # ========= 右子树（>）=========
+        new_lower = lower.copy()
+        new_lower[f] = max(new_lower[f], thresh)
+        dfs(right_children[nid], new_lower, upper)
+
+    # 初始区间
+    lower0 = np.full(n_features, 0.0)
+    upper0 = np.full(n_features,  2.0)
+
+    dfs(0, lower0, upper0)  # 根节点通常是0
+
+    return leaves
+
+def load_xgb_json(model_path):
+    with open(model_path, "r") as f:
+        model = json.load(f)
+    return model
+
+def extract_all_trees(model_json, n_features):
+    trees = []
+
+    for tree in model_json["learner"]["gradient_booster"]["model"]["trees"]:
+
+        leaves = extract_leaves_from_tree_array(tree, n_features)
+        trees.append(leaves)
+    base_score=float(model_json["learner"]["learner_model_param"]["base_score"][1:-1])
+    return trees,base_score
+
 # 1. 加载已训练好的模型
 # 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
 model = xgb.Booster()
@@ -137,16 +197,65 @@ input_vars.append(eps)
 #     m.addConstr(input_vars[i]==d[i])
 
 fop=m.addVar()
-start_time = time.time()
-pred_constr1 = add_predictor_constr(m, model, input_vars)
-pred_sales1 = pred_constr1.output
-elapsed = time.time() - start_time
-print(f"嵌入耗时: {elapsed:.2f} 秒")
+
+
+def load_biggs(m,fop):
+    start_time = time.time()
+    model_json1 = load_xgb_json("model1.json")
+    # model_json2 = load_xgb_json("model2.json")
+
+    n_features = 48
+
+    trees1, base_score = extract_all_trees(model_json1, n_features)
+    # trees2 = extract_all_trees(model_json1, n_features)
+    y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
+    # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
+    y_trees1 = []
+    # y_trees2 = []
+
+    # ========= 每棵树 =========
+    for t, leaves in enumerate(trees1):
+
+        Len = len(leaves)
+
+        # z变量
+        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+
+        # 输出
+        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
+        y_trees1.append(y)
+
+        # ========= 1. 选择一个叶子 =========
+        m.addConstr(z.sum() == 1)
+
+        # ========= 2. 区间约束（核心tight约束）=========
+        for i in range(n_features):
+            m.addConstr(
+                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i]
+            )
+
+            m.addConstr(
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i]
+            )
+
+        # ========= 3. 输出 =========
+        m.addConstr(
+            y == sum(leaves[l][2] * z[l] for l in range(Len))
+        )
+
+    # ========= 4. 汇总 =========
+    m.addConstr(fop == gb.quicksum(y_trees1) + base_score)
+
+    end_time = time.time()
+    elapsed = end_time - start_time
+    print(f"嵌入1耗时: {elapsed:.2f} 秒")
+    return fop
+
+load_biggs(m,fop)
 m.update()
 print(f"变量数: {m.numVars}")
 print(f"约束数: {m.numConstrs}")
 print(f"非零元素: {m.numNZs}")
-m.addConstr(pred_sales1==fop)
 
 
 LU={}
@@ -155,6 +264,7 @@ for i, j in H.Branch:
     m.addConstr(LU[(i, j)] <= L[(i, j)])
     m.addConstr(LU[(i, j)] <= U[(i, j)])
     m.addConstr(LU[(i, j)] <= L[(i, j)] + U[(i, j)] - 1 )
+
 
 # 线路建设成本
 # 换流器安装成本
@@ -181,8 +291,7 @@ C_operation = fop * H.N_d
 m.setObjective(C_operation+C_invest, gb.GRB.MINIMIZE)
 start_time = time.time()
 
-
-# 设置调优参数
+# # 设置调优参数
 # m.setParam('TimeLimit', 600)        # 单次求解时间限制
 # m.setParam('TuneTimeLimit', 3600)   # 调优总时间限制
 # m.setParam('TuneCriterion', 3)      # 调优准则：最大化下界
@@ -203,12 +312,15 @@ m.optimize()
 
 
 
+
+
+
+
 if m.status != gb.GRB.OPTIMAL:
     print(m.status)
 elapsed = time.time() - start_time
 print(f"求解耗时: {elapsed:.2f} 秒")
 print(fop.X)
-print(pred_sales1.X)
 print(m.ObjVal)
 res=[]
 for i in range(len(input_vars)):

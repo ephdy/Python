@@ -32,7 +32,7 @@ def extract_leaves_from_tree_array(tree, n_features):
 
         # ========= 左子树（≤）=========
         new_upper = upper.copy()
-        new_upper[f] = min(new_upper[f], thresh)
+        new_upper[f] = min(new_upper[f], thresh-0.005)
         dfs(left_children[nid], lower, new_upper)
 
         # ========= 右子树（>）=========
@@ -41,8 +41,8 @@ def extract_leaves_from_tree_array(tree, n_features):
         dfs(right_children[nid], new_lower, upper)
 
     # 初始区间
-    lower0 = np.full(n_features, 0)
-    upper0 = np.full(n_features,  2)
+    lower0 = np.full(n_features, 0.0)
+    upper0 = np.full(n_features,  2.0)
 
     dfs(0, lower0, upper0)  # 根节点通常是0
 
@@ -60,8 +60,8 @@ def extract_all_trees(model_json, n_features):
 
         leaves = extract_leaves_from_tree_array(tree, n_features)
         trees.append(leaves)
-
-    return trees
+    base_score=float(model_json["learner"]["learner_model_param"]["base_score"][1:-1])
+    return trees,base_score
 
 
 
@@ -69,7 +69,7 @@ def extract_all_trees(model_json, n_features):
 # 1. 加载已训练好的模型
 # 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
 model = xgb.Booster()
-model.load_model('../XGBoost_main/model1_m.json')  # 替换成你的模型路径
+model.load_model('../XGBoost_main/model1.json')  # 替换成你的模型路径
 dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.2,18991.45572],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.1,14566.06733],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0.1,0.2,17380.53408],
@@ -138,56 +138,59 @@ for i in range(len(input_vars)):
 
 fop=m.addVar(lb=-gb.GRB.INFINITY)
 #===========================================================================
-start_time = time.time()
-model_json1 = load_xgb_json("model1.json")
-# model_json2 = load_xgb_json("model2.json")
+def load_biggs(m,fop):
+    start_time = time.time()
+    model_json1 = load_xgb_json("model1.json")
+    # model_json2 = load_xgb_json("model2.json")
 
-n_features = 48
+    n_features = 48
 
-trees1 = extract_all_trees(model_json1, n_features)
-# trees2 = extract_all_trees(model_json1, n_features)
-y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
-# y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
-y_trees1 = []
-# y_trees2 = []
-# ========= 每棵树 =========
-for t, leaves in enumerate(trees1):
-    print(t)
-    Len = len(leaves)
+    trees1, base_score = extract_all_trees(model_json1, n_features)
+    # trees2 = extract_all_trees(model_json1, n_features)
+    y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
+    # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
+    y_trees1 = []
+    # y_trees2 = []
 
-    # z变量
-    z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+    # ========= 每棵树 =========
+    for t, leaves in enumerate(trees1):
 
-    # 输出
-    y_t = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
-    y_trees1.append(y_t)
+        Len = len(leaves)
 
-    # ========= 1. 选择一个叶子 =========
-    m.addConstr(z.sum() == 1)
+        # z变量
+        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
 
-    # ========= 2. 区间约束（核心tight约束）=========
-    for i in range(n_features):
+        # 输出
+        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
+        y_trees1.append(y)
+
+        # ========= 1. 选择一个叶子 =========
+        m.addConstr(z.sum() == 1)
+
+        # ========= 2. 区间约束（核心tight约束）=========
+        for i in range(n_features):
+            m.addConstr(
+                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i]
+            )
+
+            m.addConstr(
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i]
+            )
+
+        # ========= 3. 输出 =========
         m.addConstr(
-            sum(leaves[l][1][i] * z[l] for l in range(Len))>= input_vars[i]
+            y == sum(leaves[l][2] * z[l] for l in range(Len))
         )
 
-        m.addConstr(
-            sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i]
-        )
+    # ========= 4. 汇总 =========
+    m.addConstr(fop == gb.quicksum(y_trees1) + base_score)
 
-    # ========= 3. 输出 =========
-    m.addConstr(
-        y_t == sum(leaves[l][2] * z[l] for l in range(Len))
-    )
+    end_time = time.time()
+    elapsed = end_time - start_time
+    print(f"嵌入1耗时: {elapsed:.2f} 秒")
+    return fop
 
-# ========= 4. 汇总 =========
-m.addConstr(fop == sum(y_trees1)+1.3886657E4)
-
-end_time = time.time()
-elapsed = end_time - start_time
-print(f"嵌入1耗时: {elapsed:.2f} 秒")
-
-
+load_biggs(m,fop)
 #===========================================================================
 
 # pred_constr1 = add_predictor_constr(m, model, input_vars)
@@ -197,5 +200,6 @@ m.setObjective(2, gb.GRB.MINIMIZE)
 m.optimize()
 if m.status != gb.GRB.OPTIMAL:
     print(m.status)
+
 print(fop.X)
 print(m.ObjVal)

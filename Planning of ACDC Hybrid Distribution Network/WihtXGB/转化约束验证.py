@@ -6,7 +6,7 @@ import _13_nodes_distribution_network as H
 # 1. 加载已训练好的模型
 # 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
 model = xgb.Booster()
-model.load_model('../XGBoost_main/model3_m.json')  # 替换成你的模型路径
+model.load_model('../XGBoost_main/model1_m.json')  # 替换成你的模型路径
 
 # 2. 准备输入数据
 # 输入格式可以是: numpy数组、列表、pandas DataFrame
