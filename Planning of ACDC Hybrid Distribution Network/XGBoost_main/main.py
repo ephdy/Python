@@ -60,30 +60,32 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 
 
 # params = {
-#     "objective": "reg:squarederror",
-#     "max_depth": 6,  # 增加树的深度
-#     "eta": 0.02,      # 降低学习率
-#     "subsample": 0.8,  # 使用全部样本
-#     "colsample_bytree": 0.9,  # 使用全部特征
-#     "min_child_weight": 1,  # 降低最小子节点权重
-#     "gamma": 0,       # 降低分裂阈值
-#     "lambda": 0.12,      # 降低L2正则化
-#     "alpha": 0.15,       # 降低L1正则化
-#     "tree_method": "hist"
+#     n_estimators: 800 0.9606
+#   max_depth: 6
+#   learning_rate: 0.29588562703937105
+#   subsample: 0.936297660782539
+#   colsample_bytree: 0.6777041290159844
+#   colsample_bylevel: 0.962238887453326
+#   reg_alpha: 0.002956012917865913
+#   reg_lambda: 7.937225325439937e-08
+#   min_child_weight: 8
+#   gamma: 0.0009445851721057289
+#   max_bin: 128
 # }
 
-# params={
-#     'colsample_bylevel': 0.7924,
-#     "colsample_bytree": 1.0000,
-#     "gamma": 0.0000,
-#     "learning_rate": 0.0100,
-#     "max_depth": 11,
-#     'min_child_weight': 10,
-#     "reg_alpha": 0.2294,
-#     "reg_lambda": 0.0000,
-#     "subsample": 0.7226,
-#     'eval_metric': ['rmse', 'mae', 'mape'],
-# }
+params={
+    # 'n_estimators': 650 0.9723
+    'max_depth': 7,
+    'learning_rate': 0.23667621148204962,
+    'subsample': 0.6954725695655679,
+    'colsample_bytree': 0.9230046269382367,
+    'colsample_bylevel': 0.7992083353426866,
+    'reg_alpha': 0.14397237130088078,
+    'reg_lambda': 8.21245986343601e-05,
+    'min_child_weight': 6,
+    'gamma': 0.028830640586591783,
+    'max_bin': 128
+}
 
 # params={
 #     "max_depth": 8,
@@ -98,20 +100,20 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 #     "max_bin": 384
 # }
 
-params={
-    # 'n_estimators': 800,
-    'max_depth': 6,
-    'learning_rate': 0.10207683290476766,
-    'subsample': 0.8382018861412898,
-    'colsample_bytree': 0.9985818880837355,
-    'colsample_bylevel': 0.8059215136674683,
-    'reg_alpha': 1.893870655318053e-05,
-    'reg_lambda': 8.11167247614846e-08,
-    'min_child_weight': 7,
-    'gamma': 1.1867056768959225e-06,
-    'max_bin': 320
-
-}
+# params={
+#     # 'n_estimators': 800,0.987
+#     'max_depth': 6,
+#     'learning_rate': 0.10207683290476766,
+#     'subsample': 0.8382018861412898,
+#     'colsample_bytree': 0.9985818880837355,
+#     'colsample_bylevel': 0.8059215136674683,
+#     'reg_alpha': 1.893870655318053e-05,
+#     'reg_lambda': 8.11167247614846e-08,
+#     'min_child_weight': 7,
+#     'gamma': 1.1867056768959225e-06,
+#     'max_bin': 320
+#
+# }
 # num_round = 50000
 
 # ==========================
@@ -136,7 +138,7 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=400,
+    num_boost_round=650,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止

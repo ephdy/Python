@@ -3,15 +3,10 @@ import numpy as np
 import gurobipy as gb
 from gurobi_ml import add_predictor_constr
 import _13_nodes_distribution_network as H
-import time
 # 1. 加载已训练好的模型
 # 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
 model = xgb.Booster()
-model.load_model('../XGBoost_main/model1_m.json')  # 替换成你的模型路径
-
-# 2. 准备输入数据
-# 输入格式可以是: numpy数组、列表、pandas DataFrame
-# 注意: 特征数量必须与训练时一致，且顺序相同
+model.load_model('../XGBoost_main/model3_m.json')  # 替换成你的模型路径
 dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.2,18991.45572],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.1,14566.06733],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0.1,0.2,17380.53408],
@@ -55,73 +50,19 @@ dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0
     [0,0,0,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0,1,0,0,0,0,0,0,1,0,1,0,0,1,1,1,0,0,0,1,0,0,0,1,0,1,0,1,1,0,0.1,13434.52274]]
 input_data = np.array([[row[:-1] for row in dd][0]])
 print(input_data)# 示例: 一行5个特征
-
-# 3. 执行预测
-# 对于回归任务: 直接输出预测值
-# 对于二分类任务: 默认输出概率值 (0到1之间) [citation:6]
 prediction = model.predict(xgb.DMatrix(input_data))
-
-# 4. 打印输出
 print(f"预测结果: {prediction}")
-# a=[row[-1] for row in dd]
-# print(a)
-# b=[]
-# for i in range(len(a)):
-#     b.append(abs(a[i]-prediction[i])/a[i]*100)
-# print(b)
 d=[row[:-1] for row in dd][0]
 m=gb.Model('Grid_planning')
 S={}
 for i in range(H.n):
     S[i]=m.addVar(vtype=gb.GRB.BINARY, name=f"S_{i}")
-m.addConstr(S[0]==0)
 # 定义支路投建变量
 U = {}
 for i, j in H.Branch:
     U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
 mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
 eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
-
-#===============================规划约束=================================================
-for node in range(H.n):
-        m.addConstr(
-            sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) <= H.L_max,
-            name=f"degree_{node}")
-        m.addConstr(
-            sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) >= H.L_min,
-            name=f"degree_{node}"
-        )
-F = {}
-for i, j in H.Branch:
-    F[(i, j)] = m.addVar(lb=-len(H.nodes) + 1, ub=len(H.nodes) - 1, vtype=gb.GRB.CONTINUOUS, name=f"F_{i}_{j}")
-for node in H.nodes:
-    if node == 0:
-        m.addConstr(
-            sum(F[(node, j)] for i, j in H.Branch if i == node) == len(H.nodes) - 1,
-            name=f"flow_balance_{node}"
-        )
-    else:
-        m.addConstr(
-            sum(F[(i, node)] for i, j in H.Branch if j == node) - sum(
-                F[(node, j)] for i, j in H.Branch if i == node) == 1,
-            name=f"flow_balance_{node}"
-        )
-for i, j in H.Branch:
-    m.addConstr(F[(i, j)] <= len(H.nodes) * U[(i, j)], name=f"flow_+cap_{i}_{j}")
-    m.addConstr(F[(i, j)] >= -len(H.nodes) * U[(i, j)], name=f"flow_-cap_{i}_{j}")
-# m.addConstr(
-#     sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
-#     name="edges_count"
-# )
-L={}
-for i, j in H.Branch:
-    L[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"L_{i}_{j}")
-    m.addConstr(L[(i, j)] >= (S[i] - S[j]))
-    m.addConstr(L[(i, j)] >= (S[j] - S[i]))
-    m.addConstr(L[(i, j)] <= (S[i] + S[j]))
-    m.addConstr(L[(i, j)] <= (2 - S[i] - S[j]))
-    # m.addConstr(L[(i, j)] <= U[(i, j)])
-
 input_vars = []
 for i in H.nodes:
     input_vars.append(S[i])
@@ -129,45 +70,16 @@ for i, j in H.Branch:
     input_vars.append(U[(i, j)])
 input_vars.append(mu)
 input_vars.append(eps)
-# for i in range(len(input_vars)):
-#     m.addConstr(input_vars[i]==d[i])
+for i in range(len(input_vars)):
+    m.addConstr(input_vars[i]==d[i])
 
 fop=m.addVar()
-start_time = time.time()
+
+
 pred_constr1 = add_predictor_constr(m, model, input_vars)
 pred_sales1 = pred_constr1.output
-elapsed = time.time() - start_time
-print(f"求解耗时: {elapsed:.2f} 秒")
-m.update()
-print(f"变量数: {m.numVars}")
-print(f"约束数: {m.numConstrs}")
-print(f"非零元素: {m.numNZs}")
 m.addConstr(pred_sales1==fop)
-
-
-# 线路建设成本
-# 换流器安装成本
-C_line = 0
-S_vsc=0
-S_c = 0
-
-for i, j in H.Branch:
-    C_line += H.c_l[0] * H.Length[i][j] * U[(i, j)]
-    S_vsc += H.S_vsc_ij*L[(i, j)]*U[(i, j)]
-
-for i in H.nodes:
-    S_c = S_c + H.S_c_load * (H.n__ac[i] * S[i] + H.n__dc[i] * (1 - S[i]))
-    S_c = S_c + H.S_c_wind * (S[i] + 2 * (1 - S[i])) * H.n__wind[i]
-    S_c = S_c + H.S_c_pv * H.n__pv[i]
-
-C_cvt = H.c_c * S_c + H.c_v * S_vsc
-
-C_invest = C_line * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) + C_cvt * (pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1))
-C_operation = fop * H.N_d
-
-
-
-m.setObjective(C_operation+C_invest, gb.GRB.MINIMIZE)
+m.setObjective(2, gb.GRB.MINIMIZE)
 m.optimize()
 if m.status != gb.GRB.OPTIMAL:
     print(m.status)
