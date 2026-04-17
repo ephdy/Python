@@ -193,9 +193,10 @@ input_vars2.append(Gain)
 # for i in range(len(input_vars)):
 #     m.addConstr(input_vars[i]==d[i])
 
-fop=m.addVar(lb=-gb.GRB.INFINITY,name="fop")
-Loss=m.addVar(lb=-gb.GRB.INFINITY,name="Loss")
-
+# fop=m.addVar(lb=-gb.GRB.INFINITY,name="fop")
+# Loss=m.addVar(lb=-gb.GRB.INFINITY,name="Loss")
+fop=m.addVar(name="fop")
+Loss=m.addVar(name="Loss")
 
 def load_biggs(m,fop,Loss):
     start_time = time.time()
