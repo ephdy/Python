@@ -197,13 +197,13 @@ Loss=m.addVar(lb=-gb.GRB.INFINITY,name="Loss")
 
 def load_biggs(m,fop,Loss):
     start_time = time.time()
-    model_json1 = load_xgb_json("model1.json")
-    model_json2 = load_xgb_json("model2.json")
+    model_json1 = load_xgb_json("../XGBoost_main/model1.json")
+    model_json2 = load_xgb_json("../XGBoost_main/model2.json")
 
     n_features = 48
 
     trees1, base_score1 = extract_all_trees(model_json1, n_features)
-    trees2, base_score2 = extract_all_trees(model_json1, n_features)
+    trees2, base_score2 = extract_all_trees(model_json2, n_features)
     # y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
     # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
     y_trees1 = []
@@ -241,9 +241,9 @@ def load_biggs(m,fop,Loss):
 
     # ========= 4. 汇总 =========
     m.addConstr(fop == gb.quicksum(y_trees1) + base_score1)
-
+    print(1)
     # ========= 二棵树 =========
-    for t, leaves in enumerate(trees1):
+    for t, leaves in enumerate(trees2):
 
         Len = len(leaves)
 
@@ -258,7 +258,7 @@ def load_biggs(m,fop,Loss):
         m.addConstr(z.sum() == 1)
 
         # ========= 2. 区间约束（核心tight约束）=========
-        for i in range(n_features):
+        for i in range(47):
             m.addConstr(
                 sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars2[i]
             )
