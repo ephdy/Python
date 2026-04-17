@@ -1,3 +1,5 @@
+from os import name
+
 import xgboost as xgb
 import numpy as np
 import gurobipy as gb
@@ -141,10 +143,10 @@ m.addConstr(Gain == 0.9 * z00 + 0.8 * z01 + 0.99 * z10 + 0.88 * z11)
 for node in range(H.n):
         m.addConstr(
             sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) <= H.L_max,
-            name=f"degree_{node}")
+            name=f"degree_less_{node}")
         m.addConstr(
             sum(U[(i, j)] for i, j in H.Branch if i == node or j == node) >= H.L_min,
-            name=f"degree_{node}"
+            name=f"degree_more_{node}"
         )
 F = {}
 for i, j in H.Branch:
@@ -164,10 +166,10 @@ for node in H.nodes:
 for i, j in H.Branch:
     m.addConstr(F[(i, j)] <= len(H.nodes) * U[(i, j)], name=f"flow_+cap_{i}_{j}")
     m.addConstr(F[(i, j)] >= -len(H.nodes) * U[(i, j)], name=f"flow_-cap_{i}_{j}")
-m.addConstr(
-    sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
-    name="edges_count"
-)
+# m.addConstr(
+#     sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
+#     name="edges_count"
+# )
 L={}
 for i, j in H.Branch:
     L[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"L_{i}_{j}")
@@ -215,32 +217,32 @@ def load_biggs(m,fop,Loss):
         Len = len(leaves)
 
         # z变量
-        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z1_{t}")
 
         # 输出
-        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
+        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y1_{t}")
         y_trees1.append(y)
 
         # ========= 1. 选择一个叶子 =========
-        m.addConstr(z.sum() == 1)
+        m.addConstr(z.sum() == 1,name=f"1tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
         for i in range(n_features):
             m.addConstr(
-                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i]
+                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i],name=f"1>=_{t}_{i}"
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i]
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i],name=f"1<=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
         m.addConstr(
-            y == sum(leaves[l][2] * z[l] for l in range(Len))
+            y == sum(leaves[l][2] * z[l] for l in range(Len)), name=f"1y_sum_{t}"
         )
 
     # ========= 4. 汇总 =========
-    m.addConstr(fop == gb.quicksum(y_trees1) + base_score1)
+    m.addConstr(fop == gb.quicksum(y_trees1) + base_score1,name=f"fop_sum")
     print(1)
     # ========= 二棵树 =========
     for t, leaves in enumerate(trees2):
@@ -248,32 +250,32 @@ def load_biggs(m,fop,Loss):
         Len = len(leaves)
 
         # z变量
-        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z2_{t}")
 
         # 输出
-        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
+        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y2_{t}")
         y_trees2.append(y)
 
         # ========= 1. 选择一个叶子 =========
-        m.addConstr(z.sum() == 1)
+        m.addConstr(z.sum() == 1,name=f"2tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
         for i in range(47):
             m.addConstr(
-                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars2[i]
+                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars2[i],name=f"2>=_{t}_{i}"
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i]
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i],name=f"2>=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
         m.addConstr(
-            y == sum(leaves[l][2] * z[l] for l in range(Len))
+            y == sum(leaves[l][2] * z[l] for l in range(Len)) , name=f"2y_sum_{t}"
         )
 
     # ========= 4. 汇总 =========
-    m.addConstr(Loss == gb.quicksum(y_trees1) + base_score2)
+    m.addConstr(Loss == gb.quicksum(y_trees2) + base_score2,name=f"loss_sum")
 
     end_time = time.time()
     elapsed = end_time - start_time
