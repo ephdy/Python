@@ -267,7 +267,7 @@ def load_biggs(m,fop,Loss):
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i],name=f"2>=_{t}_{i}"
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i],name=f"2<=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
@@ -328,7 +328,11 @@ C_operation = fop * H.N_d
 m.setObjective(C_operation+C_invest+Loss*1e6, gb.GRB.MINIMIZE)
 start_time = time.time()
 
-
+warms=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,1,0,0,0,1,0,1,1,0,1,0,1,0,0,0,0,0,0,1,1,1,1,0.1,0.1]
+for i in range(46):
+    input_vars[i].Start=warms[i]
+mu0.Start=1
+eps0.Start=0
 # 设置调优参数
 # m.setParam('TimeLimit', 600)        # 单次求解时间限制
 # m.setParam('TuneTimeLimit', 3600)   # 调优总时间限制
@@ -342,7 +346,7 @@ start_time = time.time()
 #     m.getTuneResult(i)
 #     # 使用调优后的参数重新求解
 #     m.optimize()
-m.write("my_model.mps")
+m.write("V4_model.mps")
 m.optimize()
 
 if m.Status == gb.GRB.INFEASIBLE:
@@ -362,3 +366,6 @@ print(m.ObjVal)
 res=[]
 for i in range(len(input_vars)):
     res.append(input_vars[i].X)
+if m.Status == gb.GRB.OPTIMAL:
+    for i, var in enumerate(input_vars):
+        print(f"input_vars[{i}] = {var.X}")
