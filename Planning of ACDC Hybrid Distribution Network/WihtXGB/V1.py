@@ -124,10 +124,10 @@ for node in H.nodes:
 for i, j in H.Branch:
     m.addConstr(F[(i, j)] <= len(H.nodes) * U[(i, j)], name=f"flow_+cap_{i}_{j}")
     m.addConstr(F[(i, j)] >= -len(H.nodes) * U[(i, j)], name=f"flow_-cap_{i}_{j}")
-# m.addConstr(
-#     sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
-#     name="edges_count"
-# )
+m.addConstr(
+    sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
+    name="edges_count"
+)
 L={}
 for i, j in H.Branch:
     L[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"L_{i}_{j}")
@@ -165,7 +165,7 @@ print(f"变量数: {m.numVars}")
 print(f"约束数: {m.numConstrs}")
 print(f"非零元素: {m.numNZs}")
 m.addConstr(pred_sales1==fop)
-# m.addConstr(pred_sales2==Loss)
+m.addConstr(pred_sales2==Loss)
 
 
 LU={}

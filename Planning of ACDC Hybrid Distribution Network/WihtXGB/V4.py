@@ -1,11 +1,10 @@
 import xgboost as xgb
 import numpy as np
 import gurobipy as gb
-import json
-
+from gurobi_ml import add_predictor_constr
 import _13_nodes_distribution_network as H
 import time
-
+import json
 
 def extract_leaves_from_tree_array(tree, n_features):
     """
@@ -64,14 +63,6 @@ def extract_all_trees(model_json, n_features):
     base_score=float(model_json["learner"]["learner_model_param"]["base_score"][1:-1])
     return trees,base_score
 
-# 1. 加载已训练好的模型
-# 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
-model = xgb.Booster()
-model.load_model('../XGBoost_main/model1_m.json')  # 替换成你的模型路径
-
-# 2. 准备输入数据
-# 输入格式可以是: numpy数组、列表、pandas DataFrame
-# 注意: 特征数量必须与训练时一致，且顺序相同
 dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.2,18991.45572],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0,0.1,14566.06733],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,1,0,0,0.1,0.2,17380.53408],
@@ -113,22 +104,7 @@ dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,0,1,0,1,0,0,1,0,0,0,0,1,1,1,0,0,1,0,1,0,1,1,0,0,0,1,0,0.1,12236.40576],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,0,1,0,1,0,0,1,0,0,0,0,1,1,1,0,0,1,0,1,0,1,1,0,0,0,1,0.1,0.2,12008.28778],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0,1,0,0,0,0,0,0,1,0,1,0,0,1,1,1,0,0,0,1,0,0,0,1,0,1,0,1,1,0,0.1,13434.52274]]
-input_data = np.array([[row[:-1] for row in dd][0]])
-print(input_data)# 示例: 一行5个特征
 
-# 3. 执行预测
-# 对于回归任务: 直接输出预测值
-# 对于二分类任务: 默认输出概率值 (0到1之间) [citation:6]
-prediction = model.predict(xgb.DMatrix(input_data))
-
-# 4. 打印输出
-print(f"预测结果: {prediction}")
-# a=[row[-1] for row in dd]
-# print(a)
-# b=[]
-# for i in range(len(a)):
-#     b.append(abs(a[i]-prediction[i])/a[i]*100)
-# print(b)
 d=[row[:-1] for row in dd][0]
 m=gb.Model('Grid_planning')
 S={}
@@ -143,8 +119,23 @@ mu0=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
 eps0=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
 mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
 eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
-m.addConstr(mu==0.1*mu0)
-m.addConstr(eps==eps0*0.1+0.1)
+m.addConstr(mu==0.1*mu0,name="mu021")
+m.addConstr(eps==eps0*0.1+0.1,name="eps021")
+
+# 枚举四种组合的指示变量
+z00 = m.addVar(vtype=gb.GRB.BINARY, name="z00")  # mu0=0, eps0=0
+z01 = m.addVar(vtype=gb.GRB.BINARY, name="z01")  # mu0=0, eps0=1
+z10 = m.addVar(vtype=gb.GRB.BINARY, name="z10")  # mu0=1, eps0=0
+z11 = m.addVar(vtype=gb.GRB.BINARY, name="z11")  # mu0=1, eps0=1
+
+# 只有一个组合被选中
+m.addConstr(z00 + z01 + z10 + z11 == 1,name="z00")
+
+# 关联原始二元变量
+m.addConstr(mu0 == z10 + z11)
+m.addConstr(eps0 == z01 + z11)
+Gain = m.addVar(vtype=gb.GRB.CONTINUOUS, name="Gain")
+m.addConstr(Gain == 0.9 * z00 + 0.8 * z01 + 0.99 * z10 + 0.88 * z11)
 
 #===============================规划约束=================================================
 for node in range(H.n):
@@ -173,47 +164,52 @@ for node in H.nodes:
 for i, j in H.Branch:
     m.addConstr(F[(i, j)] <= len(H.nodes) * U[(i, j)], name=f"flow_+cap_{i}_{j}")
     m.addConstr(F[(i, j)] >= -len(H.nodes) * U[(i, j)], name=f"flow_-cap_{i}_{j}")
-# m.addConstr(
-#     sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
-#     name="edges_count"
-# )
+m.addConstr(
+    sum(U[(i, j)] for i, j in H.Branch) == H.n - 1,
+    name="edges_count"
+)
 L={}
 for i, j in H.Branch:
     L[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"L_{i}_{j}")
-    m.addConstr(L[(i, j)] >= (S[i] - S[j]))
-    m.addConstr(L[(i, j)] >= (S[j] - S[i]))
-    m.addConstr(L[(i, j)] <= (S[i] + S[j]))
-    m.addConstr(L[(i, j)] <= (2 - S[i] - S[j]))
+    m.addConstr(L[(i, j)] >= (S[i] - S[j]),name=f"L1_{i}_{j}")
+    m.addConstr(L[(i, j)] >= (S[j] - S[i]), name=f"L2_{i}_{j}")
+    m.addConstr(L[(i, j)] <= (S[i] + S[j]),name=f"L3_{i}_{j}")
+    m.addConstr(L[(i, j)] <= (2 - S[i] - S[j]),name=f"L4_{i}_{j}")
     # m.addConstr(L[(i, j)] <= U[(i, j)])
 
 input_vars = []
+input_vars2 = []
 for i in H.nodes:
     input_vars.append(S[i])
+    input_vars2.append(S[i])
 for i, j in H.Branch:
     input_vars.append(U[(i, j)])
+    input_vars2.append(U[(i, j)])
 input_vars.append(mu)
 input_vars.append(eps)
+input_vars2.append(Gain)
 # for i in range(len(input_vars)):
 #     m.addConstr(input_vars[i]==d[i])
 
-fop=m.addVar()
+fop=m.addVar(lb=-gb.GRB.INFINITY,name="fop")
+Loss=m.addVar(lb=-gb.GRB.INFINITY,name="Loss")
 
 
-def load_biggs(m,fop):
+def load_biggs(m,fop,Loss):
     start_time = time.time()
     model_json1 = load_xgb_json("model1.json")
-    # model_json2 = load_xgb_json("model2.json")
+    model_json2 = load_xgb_json("model2.json")
 
     n_features = 48
 
-    trees1, base_score = extract_all_trees(model_json1, n_features)
-    # trees2 = extract_all_trees(model_json1, n_features)
-    y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
+    trees1, base_score1 = extract_all_trees(model_json1, n_features)
+    trees2, base_score2 = extract_all_trees(model_json1, n_features)
+    # y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
     # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
     y_trees1 = []
-    # y_trees2 = []
+    y_trees2 = []
 
-    # ========= 每棵树 =========
+    # ========= 一棵树 =========
     for t, leaves in enumerate(trees1):
 
         Len = len(leaves)
@@ -244,27 +240,65 @@ def load_biggs(m,fop):
         )
 
     # ========= 4. 汇总 =========
-    m.addConstr(fop == gb.quicksum(y_trees1) + base_score)
+    m.addConstr(fop == gb.quicksum(y_trees1) + base_score1)
+
+    # ========= 二棵树 =========
+    for t, leaves in enumerate(trees1):
+
+        Len = len(leaves)
+
+        # z变量
+        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+
+        # 输出
+        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
+        y_trees2.append(y)
+
+        # ========= 1. 选择一个叶子 =========
+        m.addConstr(z.sum() == 1)
+
+        # ========= 2. 区间约束（核心tight约束）=========
+        for i in range(n_features):
+            m.addConstr(
+                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars2[i]
+            )
+
+            m.addConstr(
+                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i]
+            )
+
+        # ========= 3. 输出 =========
+        m.addConstr(
+            y == sum(leaves[l][2] * z[l] for l in range(Len))
+        )
+
+    # ========= 4. 汇总 =========
+    m.addConstr(Loss == gb.quicksum(y_trees1) + base_score2)
 
     end_time = time.time()
     elapsed = end_time - start_time
     print(f"嵌入1耗时: {elapsed:.2f} 秒")
     return fop
 
-load_biggs(m,fop)
+load_biggs(m,fop,Loss)
+
+
+
+
+
 m.update()
 print(f"变量数: {m.numVars}")
 print(f"约束数: {m.numConstrs}")
 print(f"非零元素: {m.numNZs}")
 
 
+
 LU={}
 for i, j in H.Branch:
     LU[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"LU_{i}_{j}")
-    m.addConstr(LU[(i, j)] <= L[(i, j)])
-    m.addConstr(LU[(i, j)] <= U[(i, j)])
-    m.addConstr(LU[(i, j)] <= L[(i, j)] + U[(i, j)] - 1 )
-
+    m.addConstr(LU[(i, j)] <= L[(i, j)],name=f"LU1_{i}_{j}")
+    m.addConstr(LU[(i, j)] <= U[(i, j)],name=f"LU2_{i}_{j}")
+    m.addConstr(LU[(i, j)] >= L[(i, j)] + U[(i, j)] - 1 ,name=f"LU3_{i}_{j}")
 
 # 线路建设成本
 # 换流器安装成本
@@ -288,10 +322,11 @@ C_operation = fop * H.N_d
 
 
 
-m.setObjective(C_operation+C_invest, gb.GRB.MINIMIZE)
+m.setObjective(C_operation+C_invest+Loss*1e6, gb.GRB.MINIMIZE)
 start_time = time.time()
 
-# # 设置调优参数
+
+# 设置调优参数
 # m.setParam('TimeLimit', 600)        # 单次求解时间限制
 # m.setParam('TuneTimeLimit', 3600)   # 调优总时间限制
 # m.setParam('TuneCriterion', 3)      # 调优准则：最大化下界
@@ -304,23 +339,22 @@ start_time = time.time()
 #     m.getTuneResult(i)
 #     # 使用调优后的参数重新求解
 #     m.optimize()
-
+m.write("my_model.mps")
 m.optimize()
 
+if m.Status == gb.GRB.INFEASIBLE:
+    print("模型不可行，正在计算IIS...")
 
-
-
-
-
-
-
-
+    # 1. 计算IIS
+    m.computeIIS()
+    m.write("model_iis.ilp")
 
 if m.status != gb.GRB.OPTIMAL:
     print(m.status)
 elapsed = time.time() - start_time
 print(f"求解耗时: {elapsed:.2f} 秒")
 print(fop.X)
+# print(pred_sales1.X)
 print(m.ObjVal)
 res=[]
 for i in range(len(input_vars)):

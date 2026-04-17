@@ -556,7 +556,7 @@ if __name__ == '__main__':
 
     fun3('./snap/新样本_44.csv')
     fun3('./snap/新样本_45.csv')
-    fun3('./snap/新样本_46.csv')
+
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')
     # fun3('./snap/50万样本_4.csv')
