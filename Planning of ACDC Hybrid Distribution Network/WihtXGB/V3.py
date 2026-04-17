@@ -62,12 +62,9 @@ def extract_all_trees(model_json, n_features):
         leaves = extract_leaves_from_tree_array(tree, n_features)
         trees.append(leaves)
     base_score=float(model_json["learner"]["learner_model_param"]["base_score"][1:-1])
+    print(base_score)
     return trees,base_score
 
-# 1. 加载已训练好的模型
-# 支持 .json, .ubj, .bst 等格式 [citation:2][citation:9]
-model = xgb.Booster()
-model.load_model('../XGBoost_main/model1_m.json')  # 替换成你的模型路径
 
 # 2. 准备输入数据
 # 输入格式可以是: numpy数组、列表、pandas DataFrame
@@ -113,22 +110,7 @@ dd=[[0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,0,1,0,1,0,0,1,0,0,0,0,1,1,1,0,0,1,0,1,0,1,1,0,0,0,1,0,0.1,12236.40576],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,0,1,0,1,0,0,1,0,0,0,0,1,1,1,0,0,1,0,1,0,1,1,0,0,0,1,0.1,0.2,12008.28778],
     [0,0,0,1,0,0,1,1,0,1,0,0,1,0,0,1,1,0,1,0,0,0,0,0,0,1,0,1,0,0,1,1,1,0,0,0,1,0,0,0,1,0,1,0,1,1,0,0.1,13434.52274]]
-input_data = np.array([[row[:-1] for row in dd][0]])
-print(input_data)# 示例: 一行5个特征
 
-# 3. 执行预测
-# 对于回归任务: 直接输出预测值
-# 对于二分类任务: 默认输出概率值 (0到1之间) [citation:6]
-prediction = model.predict(xgb.DMatrix(input_data))
-
-# 4. 打印输出
-print(f"预测结果: {prediction}")
-# a=[row[-1] for row in dd]
-# print(a)
-# b=[]
-# for i in range(len(a)):
-#     b.append(abs(a[i]-prediction[i])/a[i]*100)
-# print(b)
 d=[row[:-1] for row in dd][0]
 m=gb.Model('Grid_planning')
 S={}
@@ -201,14 +183,14 @@ fop=m.addVar()
 
 def load_biggs(m,fop):
     start_time = time.time()
-    model_json1 = load_xgb_json("model1.json")
+    model_json1 = load_xgb_json("../XGBoost_main/model1.json")
     # model_json2 = load_xgb_json("model2.json")
 
     n_features = 48
 
     trees1, base_score = extract_all_trees(model_json1, n_features)
     # trees2 = extract_all_trees(model_json1, n_features)
-    y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
+    # y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
     # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
     y_trees1 = []
     # y_trees2 = []
@@ -220,6 +202,7 @@ def load_biggs(m,fop):
 
         # z变量
         z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z_{t}")
+        z.BranchPriority = 20
 
         # 输出
         y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y_{t}")
@@ -286,6 +269,10 @@ C_cvt = H.c_c * S_c + H.c_v * S_vsc
 C_invest = C_line * (H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) +H.beta_line)+ C_cvt * (H.r *(pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1)) + H.beta_cvt)
 C_operation = fop * H.N_d
 
+for i in range(len(input_vars)):
+    input_vars[i].BranchPriority = 100
+
+
 
 
 m.setObjective(C_operation+C_invest, gb.GRB.MINIMIZE)
@@ -325,3 +312,7 @@ print(m.ObjVal)
 res=[]
 for i in range(len(input_vars)):
     res.append(input_vars[i].X)
+print(res)
+if m.Status == gb.GRB.OPTIMAL:
+    for i, var in enumerate(input_vars):
+        print(f"input_vars[{i}] = {var.X}")

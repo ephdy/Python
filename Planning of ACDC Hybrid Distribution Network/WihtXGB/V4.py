@@ -1,9 +1,9 @@
-from os import name
+
 
 import xgboost as xgb
 import numpy as np
 import gurobipy as gb
-from gurobi_ml import add_predictor_constr
+
 import _13_nodes_distribution_network as H
 import time
 import json
@@ -203,10 +203,9 @@ def load_biggs(m,fop,Loss):
     model_json1 = load_xgb_json("../XGBoost_main/model1.json")
     model_json2 = load_xgb_json("../XGBoost_main/model2.json")
 
-    n_features = 48
 
-    trees1, base_score1 = extract_all_trees(model_json1, n_features)
-    trees2, base_score2 = extract_all_trees(model_json2, n_features)
+    trees1, base_score1 = extract_all_trees(model_json1, 48)
+    trees2, base_score2 = extract_all_trees(model_json2, 47)
     # y_total1 = m.addVar(lb=-gb.GRB.INFINITY, name="y1")
     # y_total2 = m.addVar(lb=-gb.GRB.INFINITY, name="y2")
     y_trees1 = []
@@ -219,7 +218,7 @@ def load_biggs(m,fop,Loss):
 
         # z变量
         z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z1_{t}")
-
+        z.BranchPriority = 10
         # 输出
         y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y1_{t}")
         y_trees1.append(y)
@@ -228,7 +227,7 @@ def load_biggs(m,fop,Loss):
         m.addConstr(z.sum() == 1,name=f"1tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
-        for i in range(n_features):
+        for i in range(48):
             m.addConstr(
                 sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i],name=f"1>=_{t}_{i}"
             )
@@ -252,7 +251,7 @@ def load_biggs(m,fop,Loss):
 
         # z变量
         z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z2_{t}")
-
+        z.BranchPriority = 10
         # 输出
         y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y2_{t}")
         y_trees2.append(y)
@@ -347,6 +346,9 @@ eps0.Start=0
 #     # 使用调优后的参数重新求解
 #     m.optimize()
 m.write("V4_model.mps")
+for i in range(len(input_vars)):
+    input_vars[i].BranchPriority = 100
+
 m.optimize()
 
 if m.Status == gb.GRB.INFEASIBLE:

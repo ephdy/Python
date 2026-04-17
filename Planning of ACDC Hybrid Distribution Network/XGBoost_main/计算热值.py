@@ -19,7 +19,9 @@ for x in X:
     S_c = 0
     S=x[:13]
     U=x[13:13+33]
-    fop=x[-1]
+    fop=0.7*x[-5]+0.15*x[-3]+0.15*x[-1]
+
+    # fop=x[-1]
     for k in range(len(H.Branch)):
         i,j=H.Branch[k]
         C_line += H.c_l[0] * H.Length[i][j] * U[k]
@@ -34,7 +36,7 @@ for x in X:
 
     C_invest = C_line * (H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) +H.beta_line)+ C_cvt * (H.r *(pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1)) + H.beta_cvt)
     C_operation = fop * H.N_d
-    res=list(x)+[C_invest,C_operation,C_invest+C_operation]
+    res=list(x)+[fop,C_invest,C_operation,C_invest+C_operation]
 
     save_csv(res, new_path)
 
