@@ -214,31 +214,31 @@ def load_biggs(m,fop,Loss):
     # ========= 一棵树 =========
     for t, leaves in enumerate(trees1):
 
-        Len = len(leaves)
+        Len1 = len(leaves)
 
         # z变量
-        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z1_{t}")
-        z.BranchPriority = 10
+        z1 = m.addVars(Len1, vtype=gb.GRB.BINARY, name=f"z1_{t}")
+        z1.BranchPriority = 20
         # 输出
-        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y1_{t}")
-        y_trees1.append(y)
+        y1 = m.addVar(lb=-gb.GRB.INFINITY, name=f"y1_{t}")
+        y_trees1.append(y1)
 
         # ========= 1. 选择一个叶子 =========
-        m.addConstr(z.sum() == 1,name=f"1tree_one_{t}")
+        m.addConstr(z1.sum() == 1,name=f"1tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
         for i in range(48):
             m.addConstr(
-                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars[i],name=f"1>=_{t}_{i}"
+                sum((leaves[l][1][i]) * z1[l] for l in range(Len1)) >= input_vars[i],name=f"1>=_{t}_{i}"
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars[i],name=f"1<=_{t}_{i}"
+                sum(leaves[l][0][i] * z1[l] for l in range(Len1)) <= input_vars[i],name=f"1<=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
         m.addConstr(
-            y == sum(leaves[l][2] * z[l] for l in range(Len)), name=f"1y_sum_{t}"
+            y1 == sum(leaves[l][2] * z1[l] for l in range(Len1)), name=f"1y_sum_{t}"
         )
 
     # ========= 4. 汇总 =========
@@ -247,31 +247,31 @@ def load_biggs(m,fop,Loss):
     # ========= 二棵树 =========
     for t, leaves in enumerate(trees2):
 
-        Len = len(leaves)
+        Len2 = len(leaves)
 
         # z变量
-        z = m.addVars(Len, vtype=gb.GRB.BINARY, name=f"z2_{t}")
-        z.BranchPriority = 10
+        z2 = m.addVars(Len2, vtype=gb.GRB.BINARY, name=f"z2_{t}")
+        z2.BranchPriority = 20
         # 输出
-        y = m.addVar(lb=-gb.GRB.INFINITY, name=f"y2_{t}")
-        y_trees2.append(y)
+        y2 = m.addVar(lb=-gb.GRB.INFINITY, name=f"y2_{t}")
+        y_trees2.append(y2)
 
         # ========= 1. 选择一个叶子 =========
-        m.addConstr(z.sum() == 1,name=f"2tree_one_{t}")
+        m.addConstr(z2.sum() == 1,name=f"2tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
         for i in range(47):
             m.addConstr(
-                sum((leaves[l][1][i]) * z[l] for l in range(Len)) >= input_vars2[i],name=f"2>=_{t}_{i}"
+                sum((leaves[l][1][i]) * z2[l] for l in range(Len2)) >= input_vars2[i],name=f"2>=_{t}_{i}"
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z[l] for l in range(Len)) <= input_vars2[i],name=f"2<=_{t}_{i}"
+                sum(leaves[l][0][i] * z2[l] for l in range(Len2)) <= input_vars2[i],name=f"2<=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
         m.addConstr(
-            y == sum(leaves[l][2] * z[l] for l in range(Len)) , name=f"2y_sum_{t}"
+            y2 == sum(leaves[l][2] * z2[l] for l in range(Len2)) , name=f"2y_sum_{t}"
         )
 
     # ========= 4. 汇总 =========
@@ -349,6 +349,7 @@ m.write("V4_model.mps")
 for i in range(len(input_vars)):
     input_vars[i].BranchPriority = 100
 # m.setParam("Threads", 4)
+m.setParam("Threads", 0)
 m.optimize()
 
 if m.Status == gb.GRB.INFEASIBLE:

@@ -121,12 +121,8 @@ m.addConstr(S[0]==0)
 U = {}
 for i, j in H.Branch:
     U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
-mu0=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
-eps0=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
-mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
-eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
-m.addConstr(mu==0.1*mu0)
-m.addConstr(eps==eps0*0.1+0.1)
+mu=m.addVar(vtype=gb.GRB.BINARY, name="mu")
+eps=m.addVar(vtype=gb.GRB.BINARY, name="eps")
 
 #===============================规划约束=================================================
 for node in range(H.n):
