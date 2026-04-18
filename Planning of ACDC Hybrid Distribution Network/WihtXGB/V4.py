@@ -348,7 +348,7 @@ eps0.Start=0
 m.write("V4_model.mps")
 for i in range(len(input_vars)):
     input_vars[i].BranchPriority = 100
-
+# m.setParam("Threads", 4)
 m.optimize()
 
 if m.Status == gb.GRB.INFEASIBLE:
