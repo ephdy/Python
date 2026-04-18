@@ -19,18 +19,18 @@ def r2_metric(preds, dtrain):
     return 'r2', r2
 
 # # data = pd.read_csv("可行解.CSV")
-data = pd.read_csv("Loss样本.CSV")
-# data = pd.read_csv("新样本可行解1.CSV")
+# data = pd.read_csv("Loss样本.CSV")
+data = pd.read_csv("新样本可行解1.CSV")
 
-X = data.iloc[:,:13+33+1].values
+X = data.iloc[:,:13+33+2].values
 y = data.iloc[:, -1].values
 # print(len(X[0]))
 
 print(len(X[0]))
 print(y[0])
-y=y*1e6
-print(max(y))
-print(sum(y)/len(y))
+# y=y*1e6
+# print(max(y))
+# print(sum(y)/len(y))
 # y = (y - 7e7) /1.2e8
 # y=(y-9e3)/2.3e4
 
@@ -46,13 +46,23 @@ print(sum(y)/len(y))
 # ======================
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=3)
 
+# a=[0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, -0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, -0.0, 0.0, -0.0, -0.0, 1.0, 1.0, -0.0, -0.0, 1.0, -0.0, 1.0, -0.0, 0.0, 0.0, 1.0, 1.0, -0.0, 1.0, 1.0, 0.0, -0.0, 0.0, 0.0, 1.0, -0.0, 1.0, 1.0, 1.0, 0.0, -0.0, 1.0, 1, 0]
+#
+# new_x=np.array(a)
+# # new_y=np.array(a)
+# X_train = np.vstack([X_train, new_x])
+# y_train = np.append(y_train, 4547.7988)
+# print(X_train[-1])
+# print(y_train[-1])
 # ======================
-
+# weights = 1 / (y_train + 1)
+weights = np.where(y_train < 5000, 3, 1)
+# weights = 1 / np.sqrt(y_train + 1)
 
 # ==========================
 # 3 转换为DMatrix
 # ==========================
-
+#, weight=weights
 dtrain = xgb.DMatrix(X_train, label=y_train)
 dtest = xgb.DMatrix(X_test, label=y_test)
 
@@ -79,14 +89,15 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 
 params={
     # 'n_estimators': 650 0.9723
-    'max_depth': 7,
+    # 'objective': 'reg:absoluteerror',
+    'max_depth': 12,
     'learning_rate': 0.23667621148204962,
     'subsample': 0.6954725695655679,
     'colsample_bytree': 0.9230046269382367,
     'colsample_bylevel': 0.7992083353426866,
     'reg_alpha': 0.14397237130088078,
     'reg_lambda': 8.21245986343601e-05,
-    'min_child_weight': 6,
+    'min_child_weight': 1,
     'gamma': 0.028830640586591783,
     'max_bin': 128
 }
@@ -119,20 +130,58 @@ params={
 #
 # }
 
-params={
-    #n_estimators: 300 0.9605 log R² = 0.9850
-    'max_depth': 7,
-    'learning_rate': 0.10930804499284065,
-    'subsample': 0.8048612908644435,
-    'colsample_bytree': 0.9257245122200396,
-    'colsample_bylevel': 0.7962642981706979,
-    'reg_alpha': 4.746570801618408e-08,
-    'reg_lambda': 0.4413659342217065,
-    'min_child_weight': 6,
-    'gamma': 4.013903574223802e-08,
-    'max_bin': 448
-}
-
+# params={
+#     #n_estimators: 300 0.9605 log R² = 0.9850
+#     'max_depth': 7,
+#     'learning_rate': 0.10930804499284065,
+#     'subsample': 0.8048612908644435,
+#     'colsample_bytree': 0.9257245122200396,
+#     'colsample_bylevel': 0.7962642981706979,
+#     'reg_alpha': 4.746570801618408e-08,
+#     'reg_lambda': 0.4413659342217065,
+#     'min_child_weight': 6,
+#     'gamma': 4.013903574223802e-08,
+#     'max_bin': 448
+# }
+# params={
+#     # 'n_estimators': 750,
+#     'max_depth': 7,
+#     'learning_rate': 0.07756029650343203,
+#     'subsample': 0.9405869004615797,
+#     'colsample_bytree': 0.49819409854240887,
+#     'colsample_bylevel': 0.9069871106404851,
+#     'reg_alpha': 2.4929917471693358e-06,
+#     'reg_lambda': 2.602897591816262e-07,
+#     'min_child_weight': 3,
+#     'gamma': 0.00011264455363004058,
+#     'max_bin': 256,
+# }
+# params={
+#     # 'n_estimators': 1550,
+#     'max_depth': 8,
+#     'learning_rate': 0.11883577378474491,
+#     'subsample': 0.8711296577050291,
+#     'colsample_bytree': 0.5695848488626469,
+#     'colsample_bylevel': 0.8527846768269576,
+#     'reg_alpha': 0.00019323477258626284,
+#     'reg_lambda': 3.3133023836196556e-05,
+#     'min_child_weight': 7,
+#     'gamma': 0.25264916426102596,
+#     'max_bin': 448
+# }
+# params = {
+#     # n_estimators: 950
+#     'max_depth': 7,
+#     'learning_rate': 0.2455035500127585,
+#     'subsample': 0.4896411314094033,
+#     'colsample_bytree': 0.6209564561632248,
+#     'colsample_bylevel': 0.9324037733975401,
+#     'reg_alpha': 0.04725906965177711,
+#     'reg_lambda': 0.00015455263699771246,
+#     'min_child_weight': 3,
+#     'gamma': 1.4088985584194402e-08,
+#     'max_bin': 192
+# }
 # ==========================
 # 5 训练模型
 # ==========================
@@ -155,7 +204,7 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=300,
+    num_boost_round=800,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止
@@ -163,7 +212,7 @@ model = xgb.train(
     callbacks=[CustomMetricCallback(dtest, y_test, period=100)]
 )
 # model.save_model('model2.ubj')
-model.save_model('model2.json')
+model.save_model('model3.json')
 tree_dump = model.get_dump(with_stats=True)
 with open('xgboost_trees.txt', 'w', encoding='utf-8') as f:
     for i, tree in enumerate(tree_dump):
