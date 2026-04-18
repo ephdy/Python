@@ -117,12 +117,12 @@ m.addConstr(S[0]==0)
 U = {}
 for i, j in H.Branch:
     U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
-mu=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
-eps=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
-# mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
-# eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
-# m.addConstr(mu==0.1*mu0,name="mu021")
-# m.addConstr(eps==eps0*0.1+0.1,name="eps021")
+mu0=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
+eps0=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
+mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
+eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
+m.addConstr(mu==0.1*mu0,name="mu021")
+m.addConstr(eps==eps0*0.1+0.1,name="eps021")
 
 # 枚举四种组合的指示变量
 z00 = m.addVar(vtype=gb.GRB.BINARY, name="z00")  # mu0=0, eps0=0
@@ -134,8 +134,8 @@ z11 = m.addVar(vtype=gb.GRB.BINARY, name="z11")  # mu0=1, eps0=1
 m.addConstr(z00 + z01 + z10 + z11 == 1,name="z00")
 
 # 关联原始二元变量
-m.addConstr(mu == z10 + z11)
-m.addConstr(eps == z01 + z11)
+m.addConstr(mu0 == z10 + z11)
+m.addConstr(eps0 == z01 + z11)
 Gain = m.addVar(vtype=gb.GRB.CONTINUOUS, name="Gain")
 m.addConstr(Gain == 0.9 * z00 + 0.8 * z01 + 0.99 * z10 + 0.88 * z11)
 
@@ -187,8 +187,8 @@ for i in H.nodes:
 for i, j in H.Branch:
     input_vars.append(U[(i, j)])
     input_vars2.append(U[(i, j)])
-input_vars.append(mu)
-input_vars.append(eps)
+input_vars.append(mu0)
+input_vars.append(eps0)
 input_vars2.append(Gain)
 # for i in range(len(input_vars)):
 #     m.addConstr(input_vars[i]==d[i])
@@ -225,14 +225,16 @@ def load_biggs(m,fop,Loss):
         m.addConstr(z1.sum() == 1,name=f"1tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
-        for i in range(48):
-            m.addConstr(
-                sum((leaves[l][1][i]) * z1[l] for l in range(Len1)) >= input_vars[i],name=f"1>=_{t}_{i}"
-            )
+        for l in range(Len1):
+            for i in range(48):
 
-            m.addConstr(
-                sum(leaves[l][0][i] * z1[l] for l in range(Len1)) <= input_vars[i],name=f"1<=_{t}_{i}"
-            )
+                # 要求 x[i] = 0
+                if leaves[l][1][i] < 2:
+                    m.addConstr(input_vars[i] <= 1 - z1[l])
+
+                # 要求 x[i] = 1
+                elif leaves[l][0][i] > 0.5:
+                    m.addConstr(input_vars[i] >= z1[l])
 
         # ========= 3. 输出 =========
         m.addConstr(
@@ -258,14 +260,16 @@ def load_biggs(m,fop,Loss):
         m.addConstr(z2.sum() == 1,name=f"2tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
-        for i in range(47):
-            m.addConstr(
-                sum((leaves[l][1][i]) * z2[l] for l in range(Len2)) >= input_vars2[i],name=f"2>=_{t}_{i}"
-            )
+        for l in range(Len2):
+            for i in range(46):
+                # 要求 x[i] = 0
+                if leaves[l][1][i] < 2:
+                    m.addConstr(input_vars2[i] <= 1 - z2[l])
 
-            m.addConstr(
-                sum(leaves[l][0][i] * z2[l] for l in range(Len2)) <= input_vars2[i],name=f"2<=_{t}_{i}"
-            )
+                # 要求 x[i] = 1
+                elif leaves[l][0][i] > 0.5:
+                    m.addConstr(input_vars2[i] >= z2[l])
+
 
         # ========= 3. 输出 =========
         m.addConstr(
@@ -328,8 +332,8 @@ start_time = time.time()
 warms=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,1,0,0,0,1,0,1,1,0,1,0,1,0,0,0,0,0,0,1,1,1,1,0.1,0.1]
 for i in range(46):
     input_vars[i].Start=warms[i]
-mu.Start=1
-eps.Start=0
+mu0.Start=1
+eps0.Start=0
 # 设置调优参数
 # m.setParam('TimeLimit', 600)        # 单次求解时间限制
 # m.setParam('TuneTimeLimit', 3600)   # 调优总时间限制

@@ -28,7 +28,7 @@ y = data.iloc[:, -1].values
 
 print(len(X[0]))
 print(y[0])
-y=y
+y=y*1e6
 print(max(y))
 print(sum(y)/len(y))
 # y = (y - 7e7) /1.2e8

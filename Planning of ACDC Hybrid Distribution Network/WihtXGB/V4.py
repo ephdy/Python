@@ -187,8 +187,8 @@ for i in H.nodes:
 for i, j in H.Branch:
     input_vars.append(U[(i, j)])
     input_vars2.append(U[(i, j)])
-input_vars.append(mu)
-input_vars.append(eps)
+input_vars.append(mu0)
+input_vars.append(eps0)
 input_vars2.append(Gain)
 # for i in range(len(input_vars)):
 #     m.addConstr(input_vars[i]==d[i])
@@ -369,6 +369,7 @@ print(m.ObjVal)
 res=[]
 for i in range(len(input_vars)):
     res.append(input_vars[i].X)
+print(res)
 if m.Status == gb.GRB.OPTIMAL:
     for i, var in enumerate(input_vars):
         print(f"input_vars[{i}] = {var.X}")
