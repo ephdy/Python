@@ -335,7 +335,7 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     # ========= 求解 =========
     solver = SolverFactory('ipopt')
     # solver.options['linear_solver'] = 'MA27'
-
+    solver.threads = 2
     # solver.options['linear_solver'] = 'pardiso'MA27
     result = solver.solve(model, tee=False)
 
@@ -554,12 +554,11 @@ def fun3(path):
 
 if __name__ == '__main__':
 
-    fun3('./snap/新样本_48.csv')
+    fun3('./snap/新样本_40.csv')
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')
     # fun3('./snap/50万样本_4.csv')
     # fun3('./snap/50万样本_5.csv')
     # fun3('./snap/50万样本_6.csv')
-
 
 

@@ -56,7 +56,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # print(y_train[-1])
 # ======================
 # weights = 1 / (y_train + 1)
-weights = np.where(y_train < 5000, 3, 1)
+# weights = np.where(y_train < 5000, 3, 1)
 # weights = 1 / np.sqrt(y_train + 1)
 
 # ==========================
@@ -90,7 +90,7 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 params={
     # 'n_estimators': 650 0.9723
     # 'objective': 'reg:absoluteerror',
-    'max_depth': 12,
+    'max_depth': 7,
     'learning_rate': 0.23667621148204962,
     'subsample': 0.6954725695655679,
     'colsample_bytree': 0.9230046269382367,

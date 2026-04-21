@@ -303,16 +303,16 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     def line_AC_limit_rule(m, x, y, t):
         if (x, y) in model.E:
             return (m.P[x, y, t] ** 2 + m.Q[x, y, t] ** 2 <=
-                    0.25 * 0.25 * 0.8 * 0.8)  # = 0.04
+                    0.5 * 0.5 * 0.8 * 0.8)  # = 0.04
         else:
             return Constraint.Skip
     def line_DC_limit_rule(m, x, y, t):
         if (x, y) in model.E:
-            return (m.Vdc[x, t] * (m.Vdc[x, t] - m.Vdc[y, t]) * m.R[x, y])**2 <= 0.25 * 0.25 * 0.8 * 0.8
+            return (m.Vdc[x, t] * (m.Vdc[x, t] - m.Vdc[y, t]) * m.R[x, y])**2 <= 0.5 * 0.5 * 0.8 * 0.8
         else:
             return Constraint.Skip
     def line_VSC_limit_rule(m, v, t):
-        return (m.P_vsc_ac[v, t]**2+m.Q_vsc[v, t]**2) <= 0.25 * 0.25 * 0.8 * 0.8
+        return (m.P_vsc_ac[v, t]**2+m.Q_vsc[v, t]**2) <= 0.5 * 0.5 * 0.8 * 0.8
     # # 在模型中添加约束
     model.line_P = Constraint(model.AC,model.AC, model.t, rule=line_power_rule)
     model.line_Q = Constraint(model.AC,model.AC, model.t, rule=line_reactive_rule)
@@ -508,12 +508,13 @@ def save_csv(data,new_path):
 
 def fun3(path):
     base, ext = path.rsplit('.', 1)
-    new_path = base + '结果' + '.' + ext
+    new_path = base + '2' + '.' + ext
     data1 = pd.read_csv(path)
+    All=data1.iloc[:, :].values
     X = data1.iloc[:, :13].values
     Y = data1.iloc[:, 13:33 + 13].values
-    M = data1.iloc[:, -2].values
-    E = data1.iloc[:, -1].values
+    M = data1.iloc[:, 33 + 13 ].values
+    E = data1.iloc[:, 33 + 13 + 1].values
     print(X.shape, Y.shape)
     if os.path.exists(new_path):
         data2 = pd.read_csv(new_path)
@@ -523,10 +524,12 @@ def fun3(path):
         ex = 0
     start = time.time()
     for d in range(ex, len(E)):
+        print()
         S = X[d]
         U = Y[d]
         mu = M[d]
         epsi = E[d]
+
         Edges = []
 
         for k in range(len(Branch)):
@@ -545,7 +548,7 @@ def fun3(path):
                 print(f"IPOPT求解出错: {e}")
                 obj, status = 'None', 'None'  # 或设置默认值
             res+=[status, obj]
-        data = list(S) + list(U) + [mu,epsi] + res
+        data = list(All[d]) + res
         # print(data)
         # Draw_Grid(U, S)
         save_csv(data, new_path)
@@ -554,7 +557,8 @@ def fun3(path):
 
 if __name__ == '__main__':
 
-    fun3('./snap/新样本_39.csv')
+    fun3('./snap/新样本_48结果.csv')
+
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')
     # fun3('./snap/50万样本_4.csv')
