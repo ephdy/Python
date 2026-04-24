@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 from _13_nodes_distribution_network import *
-
+1
 def get_data(S,Edges):
     data={}
 
