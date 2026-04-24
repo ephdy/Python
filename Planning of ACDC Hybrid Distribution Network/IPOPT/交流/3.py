@@ -123,9 +123,10 @@ def PYOMO_Solve(Edges, Gain_DG, Default=None):
         else:
             return Constraint.Skip
     model.soc_final = Constraint(model.N, rule=soc_per_rule)
-    def ess_rule(m, t):
-            return m.P_ess_dis[5, t]*m.P_ess_dis[5, t]==0
-    model.Ess_chdis = Constraint(model.N, rule=ess_rule)
+
+    # def ess_rule(m, t):
+    #         return m.P_ess_dis[5, t]*m.P_ess_dis[5, t]==0
+    # model.Ess_chdis = Constraint(model.N, rule=ess_rule)
 
     # 定义系统安全运行方程
     def line_power_rule(m, x, y, t):
@@ -176,7 +177,7 @@ def PYOMO_Solve(Edges, Gain_DG, Default=None):
     # ========= 求解 =========
     solver = SolverFactory('ipopt')
     # solver.options['linear_solver'] = 'MA27'
-    # solver.threads = 2
+    solver.threads = 1
     # solver.options['linear_solver'] = 'pardiso'MA27
     result = solver.solve(model, tee=False)
 
@@ -310,8 +311,8 @@ def fun3(path):
 
 if __name__ == '__main__':
 
-    fun3('./snap/交流样本_1.csv')
-
+    fun3('./snap/交流样本_47.csv')
+    fun3('./snap/交流样本_55.csv')
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')
     # fun3('./snap/50万样本_4.csv')

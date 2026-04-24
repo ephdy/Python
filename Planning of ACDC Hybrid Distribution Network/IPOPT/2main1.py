@@ -558,7 +558,7 @@ def fun3(path):
 
 if __name__ == '__main__':
 
-    fun3('./snap/新样本_49结果.csv')
+    fun3('./snap/新样本_46结果.csv')
 
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')

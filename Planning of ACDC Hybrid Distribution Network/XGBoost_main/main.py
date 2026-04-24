@@ -19,10 +19,10 @@ def r2_metric(preds, dtrain):
     return 'r2', r2
 
 # # data = pd.read_csv("可行解.CSV")
-# data = pd.read_csv("Loss样本.CSV")
+data = pd.read_csv("Loss样本.CSV")
 data = pd.read_csv("新样本可行解1.CSV")
 
-X = data.iloc[:,:13+33+2].values
+X = data.iloc[:,13:13+33+2].values
 y = data.iloc[:, -1].values
 # print(len(X[0]))
 
@@ -204,7 +204,7 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=800,
+    num_boost_round=600,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止
