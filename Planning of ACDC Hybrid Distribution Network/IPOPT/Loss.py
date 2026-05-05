@@ -184,16 +184,20 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     def line_AC_limit_rule(m, x, y, t):
         if (x, y) in model.E:
             return (m.P[x, y, t] ** 2 + m.Q[x, y, t] ** 2 <=
-                    0.25 * 0.25 )  # = 0.04
+                    0.5 * 0.5 )  # = 0.04
         else:
             return Constraint.Skip
+
+
     def line_DC_limit_rule(m, x, y, t):
         if (x, y) in model.E:
-            return (m.Vdc[x, t] * (m.Vdc[x, t] - m.Vdc[y, t]) * m.R[x, y])**2 <= 0.25 * 0.25
+            return (m.Vdc[x, t] * (m.Vdc[x, t] - m.Vdc[y, t]) * m.R[x, y])**2 <= 0.5 * 0.5
         else:
             return Constraint.Skip
+
+
     def line_VSC_limit_rule(m, v, t):
-        return (m.P_vsc_ac[v, t]**2+m.Q_vsc[v, t]**2) <= 0.25 * 0.25
+        return (m.P_vsc_ac[v, t]**2+m.Q_vsc[v, t]**2) <= 0.5 * 0.5
     # # 在模型中添加约束
     model.line_P = Constraint(model.AC,model.AC, model.t, rule=line_power_rule)
     model.line_Q = Constraint(model.AC,model.AC, model.t, rule=line_reactive_rule)
@@ -201,22 +205,31 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
     model.line_DC_limit = Constraint(model.DC, model.DC, model.t, rule=line_DC_limit_rule)
     model.line_VSC_limit = Constraint(model.VSC, model.t, rule=line_VSC_limit_rule)
 
-
+    # def angle_diff_rule(m, x, y, t):
+    #     if (x, y) in m.E:
+    #         return (-0.5, m.theta[x, t] - m.theta[y, t], 0.5)
+    #     return Constraint.Skip
+    #
+    # model.angle_diff = Constraint(model.AC, model.AC, model.t, rule=angle_diff_rule)
     # ========= 目标函数 =========
     def obj_rule(m):
-        return sum(
-            sum(m.Pd[i,t]-m.P_load[i,t] for i in m.N)
-            for t in m.t
-        )/sum(m.Pd[i,t] for i in m.N for t in m.t)
+        return sum((m.Pd[i,t] - m.P_load[i,t])**2 for i in m.N for t in m.t)
+    # sum(m.Pd[i,t]-m.P_load[i,t] for i in m.N for t in m.t)
+    # sum( sum(m.Pd[i,t]-m.P_load[i,t] for i in m.N) for t in m.t )/sum(m.Pd[i,t] for i in m.N for t in m.t)
+
 
     model.obj = Objective(rule=obj_rule, sense=minimize)
 
     # ========= 求解 =========
     solver = SolverFactory('ipopt')
-    # solver.options['linear_solver'] = 'pardiso'
-    # solver.options['linear_solver'] = 'MA27'
-
-    # solver.options['linear_solver'] = 'pardiso'MA27
+    # solver.max_iter = 5000
+    # solver.options.update({
+    #     'tol': 1e-6,
+    #     'acceptable_tol': 1e-4,
+    #     'acceptable_iter': 5,
+    #     'max_iter': 500,
+    #     'mu_strategy': 'adaptive',
+    # })
     result = solver.solve(model, tee=False)
 
     return str(result.solver.termination_condition),value(model.obj)
@@ -325,18 +338,19 @@ def save_csv(data,new_path):
 
 def fun3(path):
     base, ext = path.rsplit('.', 1)
-    new_path = base + '2' + '.' + ext
+    new_path = base[:-1] + '3' + '.' + ext
+    new_path=new_path.replace('结果2合集', '结果3合集')
     data1 = pd.read_csv(path)
+    source=data1.iloc[:, :].values
     X = data1.iloc[:, :13].values
     Y = data1.iloc[:, 13:33 + 13].values
     Z = data1.iloc[:, 33 + 13].values
-    V = data1.iloc[:, 33 + 13 + 1:].values
+    V = data1.iloc[:, 33 + 13 + 1].values
     print(X.shape, Y.shape, Z.shape)
-    # print(X[0], Y[0], Z[0],V[0])
     if os.path.exists(new_path):
-        data2 = pd.read_csv(new_path)
+        data2 = pd.read_csv(new_path,header=None)
         R = data2.iloc[:, :2].values
-        ex = len(R) + 1
+        ex = len(R)
     else:
         ex = 0
     start = time.time()
@@ -344,13 +358,15 @@ def fun3(path):
     for d in range(ex,len(Z)):
         S = X[d]
         U = Y[d]
-        Gain = Z[d]
-        fop = V[d]
-        loss_ave=0
+        mu = Z[d]
+        epsi = V[d]
+        Gain=(1+mu)*(1-epsi)
+        loss_list= [-1 for _ in range(33)]
+        res=0
         count=0
-        flag='optimal'
         for k in range(len(Branch)):
             if U[k] == 1:
+
                 U_new = U.copy()
                 U_new[k] = 0
                 Edges = []
@@ -362,21 +378,26 @@ def fun3(path):
                 try:
                     status, obj = PYOMO_Solve(S, Edges, Gain)
                 except Exception as e:
+                    print(S,U_new,Gain)
                     print(f"IPOPT求解出错: {e}")
-                    obj, status = 1, 'None'  # 或设置默认值
-                loss_ave+=obj
-                count += 1
-                if status=='None':
-                    flag='None'
+                    obj, status = 'err', 'None'  # 或设置默认值
 
-        datas = list(S) + list(U) + [Gain] + list(fop) + [flag,loss_ave/count]
+                try:
+                    loss_list[k] = 0 if abs(obj) < 1e-5 else obj
+                    res +=0 if abs(obj) < 1e-5 else obj
+                except TypeError:
+                    loss_list[k] = obj
+                    res +=1
+                count+=1
+        datas = list(source[d]) + loss_list
         # B.Draw_Grid(a, S)
         save_csv(datas, new_path)
         print('求解耗时', time.time() - start)
         start = time.time()
 
+
 if __name__ == '__main__':
-    fun3('./snap/50万样本_250结果.csv')
+    fun3('./snap/结果2合集/新样本_39结果2.csv')
     # fun3('./snap/50万样本_198.csv')
 
 

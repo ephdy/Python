@@ -117,27 +117,26 @@ m.addConstr(S[0]==0)
 U = {}
 for i, j in H.Branch:
     U[(i, j)] = m.addVar(vtype=gb.GRB.BINARY, name=f"U_{i}_{j}")
-mu=m.addVar(vtype=gb.GRB.BINARY, name="mu0")
-eps=m.addVar(vtype=gb.GRB.BINARY, name="eps0")
-# mu=m.addVar(vtype=gb.GRB.CONTINUOUS, name="mu")
-# eps=m.addVar(vtype=gb.GRB.CONTINUOUS, name="eps")
-# m.addConstr(mu==0.1*mu0,name="mu021")
-# m.addConstr(eps==eps0*0.1+0.1,name="eps021")
+mu=m.addVar(vtype=gb.GRB.BINARY, name="mu")
+eps=m.addVar(vtype=gb.GRB.BINARY, name="eps")
 
 # 枚举四种组合的指示变量
 z00 = m.addVar(vtype=gb.GRB.BINARY, name="z00")  # mu0=0, eps0=0
 z01 = m.addVar(vtype=gb.GRB.BINARY, name="z01")  # mu0=0, eps0=1
 z10 = m.addVar(vtype=gb.GRB.BINARY, name="z10")  # mu0=1, eps0=0
 z11 = m.addVar(vtype=gb.GRB.BINARY, name="z11")  # mu0=1, eps0=1
-
+z00.BranchPriority = 100
+z01.BranchPriority = 100
+z10.BranchPriority = 100
+z11.BranchPriority = 100
 # 只有一个组合被选中
 m.addConstr(z00 + z01 + z10 + z11 == 1,name="z00")
 
 # 关联原始二元变量
 m.addConstr(mu == z10 + z11)
 m.addConstr(eps == z01 + z11)
-Gain = m.addVar(vtype=gb.GRB.CONTINUOUS, name="Gain")
-m.addConstr(Gain == 0.9 * z00 + 0.8 * z01 + 0.99 * z10 + 0.88 * z11)
+Q = m.addVar(vtype=gb.GRB.CONTINUOUS, name="Q")
+m.addConstr(Q == 0 * z00 + 0.4762 * z01 + 0.4762 * z10 + 0.02 * z11)
 
 #===============================规划约束=================================================
 for node in range(H.n):
@@ -177,19 +176,14 @@ for i, j in H.Branch:
     m.addConstr(L[(i, j)] >= (S[j] - S[i]), name=f"L2_{i}_{j}")
     m.addConstr(L[(i, j)] <= (S[i] + S[j]),name=f"L3_{i}_{j}")
     m.addConstr(L[(i, j)] <= (2 - S[i] - S[j]),name=f"L4_{i}_{j}")
-    # m.addConstr(L[(i, j)] <= U[(i, j)])
 
 input_vars = []
-input_vars2 = []
 for i in H.nodes:
     input_vars.append(S[i])
-    input_vars2.append(S[i])
 for i, j in H.Branch:
     input_vars.append(U[(i, j)])
-    input_vars2.append(U[(i, j)])
 input_vars.append(mu)
 input_vars.append(eps)
-input_vars2.append(Gain)
 # for i in range(len(input_vars)):
 #     m.addConstr(input_vars[i]==d[i])
 
@@ -200,12 +194,12 @@ Loss=m.addVar(name="Loss")
 
 def load_biggs(m,fop,Loss):
     start_time = time.time()
-    model_json1 = load_xgb_json("../XGBoost_main/model1.json")
-    model_json2 = load_xgb_json("../XGBoost_main/model2.json")
+    model_json1 = load_xgb_json("m_fop.json")
+    model_json2 = load_xgb_json("m_Loss.json")
 
 
     trees1, base_score1 = extract_all_trees(model_json1, 48)
-    trees2, base_score2 = extract_all_trees(model_json2, 47)
+    trees2, base_score2 = extract_all_trees(model_json2, 48)
     y_trees1 = []
     y_trees2 = []
 
@@ -216,7 +210,7 @@ def load_biggs(m,fop,Loss):
 
         # z变量
         z1 = m.addVars(Len1, vtype=gb.GRB.BINARY, name=f"z1_{t}")
-        z1.BranchPriority = 20
+
         # 输出
         y1 = m.addVar(lb=-gb.GRB.INFINITY, name=f"y1_{t}")
         y_trees1.append(y1)
@@ -249,7 +243,7 @@ def load_biggs(m,fop,Loss):
 
         # z变量
         z2 = m.addVars(Len2, vtype=gb.GRB.BINARY, name=f"z2_{t}")
-        z2.BranchPriority = 20
+
         # 输出
         y2 = m.addVar(lb=-gb.GRB.INFINITY, name=f"y2_{t}")
         y_trees2.append(y2)
@@ -258,13 +252,13 @@ def load_biggs(m,fop,Loss):
         m.addConstr(z2.sum() == 1,name=f"2tree_one_{t}")
 
         # ========= 2. 区间约束（核心tight约束）=========
-        for i in range(47):
+        for i in range(48):
             m.addConstr(
-                sum((leaves[l][1][i]) * z2[l] for l in range(Len2)) >= input_vars2[i],name=f"2>=_{t}_{i}"
+                sum((leaves[l][1][i]) * z2[l] for l in range(Len2)) >= input_vars[i],name=f"2>=_{t}_{i}"
             )
 
             m.addConstr(
-                sum(leaves[l][0][i] * z2[l] for l in range(Len2)) <= input_vars2[i],name=f"2<=_{t}_{i}"
+                sum(leaves[l][0][i] * z2[l] for l in range(Len2)) <= input_vars[i],name=f"2<=_{t}_{i}"
             )
 
         # ========= 3. 输出 =========
@@ -317,12 +311,13 @@ for i in H.nodes:
 
 C_cvt = H.c_c * S_c + H.c_v * S_vsc
 
-C_invest = C_line * (H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) +H.beta_line)+ C_cvt * (H.r *(pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1)) + H.beta_cvt)
-C_operation = fop * H.N_d
+C_invest0 = C_line * (H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) +H.beta_line)+ C_cvt * (H.r *(pow(1+H.r,H.T_cvt)/(pow(1+H.r,H.T_cvt)-1)) + H.beta_cvt)
+C_invest=(C_invest0-5485588)/(20991965-5485588)
+C_operation = (fop -4122)/(43720-4122)
 
 
 
-m.setObjective(C_operation+C_invest+Loss*100, gb.GRB.MINIMIZE)
+m.setObjective(C_operation+C_invest-Q+Loss, gb.GRB.MINIMIZE)
 start_time = time.time()
 
 warms=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,1,0,0,0,1,0,1,1,0,1,0,1,0,0,0,0,0,0,1,1,1,1,0.1,0.1]
@@ -345,7 +340,7 @@ eps.Start=0
 #     m.optimize()
 m.write("V4_model.mps")
 for i in range(len(input_vars)):
-    input_vars[i].BranchPriority = 100
+    input_vars[i].BranchPriority = 1000
 # m.setParam("Threads", 4)
 m.setParam("Threads", 0)
 m.optimize()

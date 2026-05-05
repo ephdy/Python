@@ -249,11 +249,11 @@ def load_allone(m,fop):
         for l in range(len(trees1[t])):
             for f in range(len(trees1[t][l][0][0])):
                 FC[trees1[t][l][0][0][f]][trees1[t][l][0][1][f]].append(z['m1'][t][l])
-    # for f in range(len(FC.keys())):
-    #     if f==0:
-    #         continue
-    #     m.addGenConstrIndicator(input_vars[f], 0, gb.quicksum(FC[f][1]), gb.GRB.EQUAL, 0, name=f"indicator{f}_0")
-    #     m.addGenConstrIndicator(input_vars[f], 1, gb.quicksum(FC[f][0]), gb.GRB.EQUAL, 0, name=f"indicator{f}_1")
+    for f in range(len(FC.keys())):
+        if f==0:
+            continue
+        m.addGenConstrIndicator(input_vars[f], 0, gb.quicksum(FC[f][1]), gb.GRB.EQUAL, 0, name=f"indicator{f}_0")
+        m.addGenConstrIndicator(input_vars[f], 1, gb.quicksum(FC[f][0]), gb.GRB.EQUAL, 0, name=f"indicator{f}_1")
     # M = 400  # 替换为实际问题的紧上界
     #
     # for f in range(1, len(FC.keys())):  # 直接从1开始，跳过f==0
@@ -314,7 +314,7 @@ C_invest = C_line * (H.r * (pow(1+H.r,H.T_line)/(pow(1+H.r,H.T_line)-1)) +H.beta
 C_operation = fop * H.N_d
 
 for i in range(len(input_vars)):
-    input_vars[i].BranchPriority = 100
+    input_vars[i].BranchPriority = 1000000
 
 
 

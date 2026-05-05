@@ -22,14 +22,16 @@ print("=" * 80)
 # ==================== 1. 准备数据 ====================
 print("\n1. 准备数据...")
 
-data = pd.read_csv("Loss样本.csv")
+data = pd.read_csv("100万fop.CSV")
 
-X = data.iloc[:,:13+33+1].values
+X = data.iloc[:,:13+33+2].values
 y = data.iloc[:, -1].values
 print(X.shape)
 print(y[0])
+print(y.min())
+print(y.max())
 y = np.log(y)
-
+print(f"log(y) 范围: [{y.min():.4f}, {y.max():.4f}]")
 # 划分数据集
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
@@ -51,8 +53,8 @@ def objective(trial):
     # 定义超参数搜索空间
     params = {
         # 核心参数
-        'n_estimators': trial.suggest_int('n_estimators', 50, 700, step=50),
-        'max_depth': trial.suggest_int('max_depth', 3, 10),
+        'n_estimators': trial.suggest_int('n_estimators', 50, 1000, step=50),
+        'max_depth': trial.suggest_int('max_depth', 3, 8),
         'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
 
         # 采样参数（防止过拟合）
@@ -69,9 +71,8 @@ def objective(trial):
         'gamma': trial.suggest_float('gamma', 1e-8, 1.0, log=True),
 
         # 性能优化参数
-        'tree_method': 'hist',  # 直方图算法
-        'max_bin': trial.suggest_int('max_bin', 128, 512, step=64),
-        'n_jobs': 1,  # 单线程避免冲突
+
+        # 'n_jobs': 1,  # 单线程避免冲突
 
         # 固定参数
         'random_state': 42,

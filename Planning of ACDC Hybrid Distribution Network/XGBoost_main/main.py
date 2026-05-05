@@ -18,11 +18,11 @@ def r2_metric(preds, dtrain):
     r2 = r2_score(labels, preds)
     return 'r2', r2
 
-# # data = pd.read_csv("可行解.CSV")
-data = pd.read_csv("Loss样本.CSV")
-data = pd.read_csv("新样本可行解1.CSV")
+# # # data = pd.read_csv("可行解.CSV")
+# data = pd.read_csv("Loss样本.CSV")
+data = pd.read_csv("100万fop.CSV")
 
-X = data.iloc[:,13:13+33+2].values
+X = data.iloc[:,:13+33+2].values
 y = data.iloc[:, -1].values
 # print(len(X[0]))
 
@@ -34,7 +34,7 @@ print(y[0])
 # y = (y - 7e7) /1.2e8
 # y=(y-9e3)/2.3e4
 
-# y = np.log(y)
+y = np.log(y)
 
 # X_inverse = 1 - X
 # 
@@ -143,45 +143,19 @@ params={
 #     'gamma': 4.013903574223802e-08,
 #     'max_bin': 448
 # }
-# params={
-#     # 'n_estimators': 750,
-#     'max_depth': 7,
-#     'learning_rate': 0.07756029650343203,
-#     'subsample': 0.9405869004615797,
-#     'colsample_bytree': 0.49819409854240887,
-#     'colsample_bylevel': 0.9069871106404851,
-#     'reg_alpha': 2.4929917471693358e-06,
-#     'reg_lambda': 2.602897591816262e-07,
-#     'min_child_weight': 3,
-#     'gamma': 0.00011264455363004058,
-#     'max_bin': 256,
-# }
-# params={
-#     # 'n_estimators': 1550,
-#     'max_depth': 8,
-#     'learning_rate': 0.11883577378474491,
-#     'subsample': 0.8711296577050291,
-#     'colsample_bytree': 0.5695848488626469,
-#     'colsample_bylevel': 0.8527846768269576,
-#     'reg_alpha': 0.00019323477258626284,
-#     'reg_lambda': 3.3133023836196556e-05,
-#     'min_child_weight': 7,
-#     'gamma': 0.25264916426102596,
-#     'max_bin': 448
-# }
-# params = {
-#     # n_estimators: 950
-#     'max_depth': 7,
-#     'learning_rate': 0.2455035500127585,
-#     'subsample': 0.4896411314094033,
-#     'colsample_bytree': 0.6209564561632248,
-#     'colsample_bylevel': 0.9324037733975401,
-#     'reg_alpha': 0.04725906965177711,
-#     'reg_lambda': 0.00015455263699771246,
-#     'min_child_weight': 3,
-#     'gamma': 1.4088985584194402e-08,
-#     'max_bin': 192
-# }
+params={
+    # 'n_estimators': 850,
+    'max_depth': 8,
+    'learning_rate': 0.2450179944999202,
+    'subsample': 0.6761692286491298,
+    'colsample_bytree': 0.7205149001819396,
+    'colsample_bylevel': 0.9535638992408891,
+    'reg_alpha': 6.036681010100295e-06,
+    'reg_lambda': 2.8784426706965624e-05,
+    'min_child_weight': 3,
+    'gamma': 0.0003928223444180537,
+}
+
 # ==========================
 # 5 训练模型
 # ==========================
@@ -204,7 +178,7 @@ model = xgb.train(
     params,
     dtrain,
     # num_boost_round=7050,
-    num_boost_round=600,
+    num_boost_round=850,
     evals=[(dtrain, 'train'), (dtest, 'val')],  # 监控数据集
 
     early_stopping_rounds=50,  # 连续50轮验证集效果没有提升则停止
@@ -212,7 +186,7 @@ model = xgb.train(
     callbacks=[CustomMetricCallback(dtest, y_test, period=100)]
 )
 # model.save_model('model2.ubj')
-model.save_model('model3.json')
+model.save_model('model1.json')
 tree_dump = model.get_dump(with_stats=True)
 with open('xgboost_trees.txt', 'w', encoding='utf-8') as f:
     for i, tree in enumerate(tree_dump):
