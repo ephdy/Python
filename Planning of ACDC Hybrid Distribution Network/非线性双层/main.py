@@ -341,6 +341,19 @@ def fop_Solve(S, Edges, D,Gain_DG, Default=None):
     # ========= 求解 =========
     solver = SolverFactory('ipopt')
     result = solver.solve(model, tee=False)
+
+    # 检查求解状态
+    if result.solver.status != SolverStatus.ok:
+        print(f"Solver status: {result.solver.status}")
+        print(f"Termination condition: {result.solver.termination_condition}")
+        return 'error', 5e5
+
+    if result.solver.termination_condition == TerminationCondition.optimal:
+        obj = value(model.obj)
+        return 'optimal', obj
+    else:
+        return result.solver.termination_condition, 5e5
+
     return str(result.solver.termination_condition),value(model.obj)
 
 def Loss_Solve(S, Edges,D,Gain_DG, Default=None):
@@ -555,6 +568,18 @@ def Loss_Solve(S, Edges,D,Gain_DG, Default=None):
     solver = SolverFactory('ipopt')
     result = solver.solve(model, tee=False)
 
+    # 检查求解状态
+    if result.solver.status != SolverStatus.ok:
+        print(f"Solver status: {result.solver.status}")
+        print(f"Termination condition: {result.solver.termination_condition}")
+        return 'error', 0.5
+
+    if result.solver.termination_condition == TerminationCondition.optimal:
+        obj = value(model.obj)
+        return 'optimal', obj
+    else:
+        return result.solver.termination_condition, 0.5
+
     return str(result.solver.termination_condition),value(model.obj)
 
 # -------------------------
@@ -753,6 +778,151 @@ def make_random_individual():
     D=np.random.randint(0, 2, size=(3,))
     return [int(x) for x in np.concatenate([S, selected_indices, D])]
 # -------------------------
+def repair_individual(ind, branch_list, min_degree=1, max_degree=3):
+    """
+    修复个体使其满足连通性和节点度数约束
+
+    参数:
+    individual: 当前个体（0/1列表）
+    branch_list: 候选支路列表
+    min_degree: 最小度数
+    max_degree: 最大度数
+
+    返回:
+    repaired_individual: 修复后的个体
+    """
+    # 获取所有节点
+    all_nodes = set()
+    for u, v in branch_list:
+        all_nodes.add(u)
+        all_nodes.add(v)
+
+    # 创建当前图
+    G = nx.Graph()
+    G.add_nodes_from(all_nodes)
+    individual=ind[13:13+33]
+    selected_edges = []
+    for i, (u, v) in enumerate(branch_list):
+        if individual[i] == 1:
+            G.add_edge(u, v)
+            selected_edges.append(i)
+
+    # 计算当前度数
+    degree_count = {node: G.degree(node) for node in all_nodes}
+
+    # 第一步：删除违反最大度数约束的边
+    repaired = individual.copy()
+
+    # 找到度数超限的节点
+    over_degree_nodes = [node for node in all_nodes if degree_count[node] > max_degree]
+
+    while over_degree_nodes:
+        node = random.choice(over_degree_nodes)
+        # 找到该节点连接的边
+        connected_edges = []
+        for i, (u, v) in enumerate(branch_list):
+            if repaired[i] == 1 and (u == node or v == node):
+                connected_edges.append((i, u, v))
+
+        if connected_edges:
+            # 随机删除一条边（优先删除对连通性影响小的边）
+            # 检查删除每条边后是否仍连通
+            for i, u, v in connected_edges:
+                test_G = G.copy()
+                test_G.remove_edge(u, v)
+                if nx.is_connected(test_G) and degree_count[u] > min_degree and degree_count[v] > min_degree:
+                    # 可以安全删除
+                    repaired[i] = 0
+                    G.remove_edge(u, v)
+                    degree_count[u] -= 1
+                    degree_count[v] -= 1
+                    break
+            else:
+                # 如果没有安全删除的边，强制删除一条
+                i, u, v = connected_edges[0]
+                repaired[i] = 0
+                G.remove_edge(u, v)
+                degree_count[u] -= 1
+                degree_count[v] -= 1
+
+        over_degree_nodes = [node for node in all_nodes if degree_count[node] > max_degree]
+
+    # 第二步：修复连通性
+    if not nx.is_connected(G):
+        # 找到所有连通分量
+        components = list(nx.connected_components(G))
+
+        # 为每个节点标记分量
+        node_to_component = {}
+        for comp_id, comp in enumerate(components):
+            for node in comp:
+                node_to_component[node] = comp_id
+
+        # 找到可以连接不同分量的边
+        while len(components) > 1:
+            candidate_edges = []
+            for i, (u, v) in enumerate(branch_list):
+                if repaired[i] == 0:  # 未选择的边
+                    if node_to_component[u] != node_to_component[v]:  # 连接不同分量
+                        if degree_count[u] < max_degree and degree_count[v] < max_degree:
+                            candidate_edges.append((i, u, v))
+
+            if not candidate_edges:
+                # 没有合适的边，需要先调整
+                break
+
+            # 随机选择一条边添加
+            i, u, v = random.choice(candidate_edges)
+            repaired[i] = 1
+            G.add_edge(u, v)
+            degree_count[u] += 1
+            degree_count[v] += 1
+
+            # 重新计算连通分量
+            components = list(nx.connected_components(G))
+            node_to_component = {}
+            for comp_id, comp in enumerate(components):
+                for node in comp:
+                    node_to_component[node] = comp_id
+
+    # 第三步：修复最小度数约束
+    under_degree_nodes = [node for node in all_nodes if degree_count[node] < min_degree]
+
+    for node in under_degree_nodes:
+        while degree_count[node] < min_degree:
+            # 找到包含该节点的候选边
+            candidate_edges = []
+            for i, (u, v) in enumerate(branch_list):
+                if repaired[i] == 0 and (u == node or v == node):
+                    other = v if u == node else u
+                    if degree_count[other] < max_degree:
+                        candidate_edges.append((i, u, v))
+
+            if not candidate_edges:
+                # 无法添加边，需要更复杂的修复
+                break
+
+            # 随机选择一条边
+            i, u, v = random.choice(candidate_edges)
+            repaired[i] = 1
+            G.add_edge(u, v)
+            degree_count[u] += 1
+            degree_count[v] += 1
+
+    # 第四步：可选优化，减少冗余边
+    # 尝试删除不影响约束的边
+    for i, (u, v) in enumerate(branch_list):
+        if repaired[i] == 1:
+            if degree_count[u] > min_degree and degree_count[v] > min_degree:
+                test_G = G.copy()
+                test_G.remove_edge(u, v)
+                if nx.is_connected(test_G):
+                    repaired[i] = 0
+                    G.remove_edge(u, v)
+                    degree_count[u] -= 1
+                    degree_count[v] -= 1
+
+    return ind[:13]+repaired+ind[13+33:]
 # -------------------------
 def evaluate(ind):
     S=ind[:13]
@@ -790,7 +960,11 @@ def evaluate(ind):
     fop=[]
     loss=[]
     for sen in sens:
-        status,obj=fop_Solve(S, Edges,D,sen)
+        try:
+            status,obj=fop_Solve(S, Edges,D,sen)
+        except Exception as e:
+            print(f"IPOPT求解出错: {e}")
+            obj, status = 'None', 'None'  # 或设置默认值
         if status=='optimal':
             fop.append(obj)
         else:
@@ -922,8 +1096,8 @@ def main(seed=SEED, pop_size=POP_SIZE, generations=GENERATIONS, n_jobs=N_JOBS):
                     pass
 
         # Repair offspring deterministically with cost-driven rules
-        # for i in range(len(offspring)):
-        #     offspring[i][:]=repair_minimal(offspring[i], min_row=MIN_ROW, max_row=MAX_ROW, extra_edges=0, rng=random)
+        for i in range(len(offspring)):
+            offspring[i][:]=repair_individual(offspring[i],H.Branch,1,3)
 
         # reassemble population with elites
         pop = elites + offspring
