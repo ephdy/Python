@@ -334,7 +334,8 @@ def PYOMO_Solve(S, Edges, Gain_DG, Default=None):
 
     # ========= 求解 =========
     solver = SolverFactory('ipopt')
-    solver.threads = 2
+    # solver = SolverFactory('scip', solver_io='nl')
+    # solver.threads = 2
     # solver.options['linear_solver'] = 'MA27'
 
     # solver.options['linear_solver'] = 'pardiso'MA27
@@ -524,7 +525,7 @@ def fun3(path):
     else:
         ex = 0
     start = time.time()
-    for d in range(ex, len(E)):
+    for d in range(0, len(E)):
         print()
         S = X[d]
         U = Y[d]
@@ -552,13 +553,14 @@ def fun3(path):
         data = list(All[d]) + res
         # print(data)
         # Draw_Grid(U, S)
-        save_csv(data, new_path)
-        print('求解耗时', time.time() - start)
+        print(data)
+        # save_csv(data, new_path)
+
         start = time.time()
 
 if __name__ == '__main__':
 
-    fun3('./snap/新样本_46结果.csv')
+    fun3('./snap/原本/新样本_1.csv')
 
     # fun3('./snap/50万样本_2.csv')
     # fun3('./snap/50万样本_3.csv')

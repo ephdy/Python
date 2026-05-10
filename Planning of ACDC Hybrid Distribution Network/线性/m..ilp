@@ -1,0 +1,16 @@
+\ Model m1_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ P_3_18: - P_tr_(3,_4)_18 = -0.1053333333333333
+ P_4_18: P_tr_(1,_4)_18 + P_tr_(3,_4)_18 = -0.1053333333333333
+ R499: - Q_tr_(3,_4)_18 = -0.0652013333333333
+ R523: Q_tr_(1,_4)_18 + Q_tr_(3,_4)_18 = -0.0652013333333333
+ 传输容量约束6: P_tr_(1,_4)_18 + Q_tr_(1,_4)_18 >= -0.282
+Bounds
+ P_tr_(1,_4)_18 free
+ Q_tr_(1,_4)_18 free
+ P_tr_(3,_4)_18 free
+ Q_tr_(3,_4)_18 free
+End

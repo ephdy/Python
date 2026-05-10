@@ -21,10 +21,10 @@ print("=" * 80)
 # ==================== 1. 准备数据 ====================
 print("\n1. 准备数据...")
 
-data = pd.read_csv("100万fop.CSV")
+data = pd.read_csv("小规模样本end.csv")
 
-X = data.iloc[:, :13 + 33 + 2].values
-y = data.iloc[:, 55].values
+X = data.iloc[:, :15].values
+y = data.iloc[:,-1].values
 
 
 # y=(y-y.min())/(y.max()-y.min())

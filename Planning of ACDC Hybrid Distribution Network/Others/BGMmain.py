@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import warnings
-
+from sklearn.metrics import mean_absolute_percentage_error, r2_score, mean_absolute_error
 warnings.filterwarnings('ignore')
 
 # ==================== 1. 准备数据 ====================
@@ -16,11 +16,13 @@ print("=" * 50)
 
 # 模拟0-1拓扑数据（替换为你的真实数据）
 np.random.seed(42)
-data = pd.read_csv("100万fop.CSV")
-
+df = pd.read_csv("小规模样本end.CSV")
+data = df.sample(frac=0.5, random_state=42)
 # Split features and labels
-X = data.iloc[:, :13 + 33 + 2].values
+X = data.iloc[:, :15].values
 y = data.iloc[:, -1].values
+print(X.shape, y.shape)
+# y=np.log(y)
 print(y.min(), y.max())
 # y=(y-y.min())/(y.max()-y.min())
 print(f"X shape: {X.shape}")
@@ -44,12 +46,13 @@ def multi_objective(trial):
     目标1: RMSE (最小化)
     目标2: R² (最大化)
     """
+
     params = {
         # 树结构参数
-        'max_depth': trial.suggest_int('max_depth', 4, 12),
-        'num_leaves': trial.suggest_int('num_leaves', 31, 200, log=True),
-        'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 5, 30),
-        'min_child_samples': trial.suggest_int('min_child_samples', 5, 20),
+        'max_depth': trial.suggest_int('max_depth', 4, 20),
+        'num_leaves': trial.suggest_int('num_leaves', 31, 255, log=True),
+        'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 5, 10),
+        'min_child_samples': trial.suggest_int('min_child_samples', 5, 10),
 
         # 采样参数
         'subsample': trial.suggest_float('subsample', 0.6, 1.0),
@@ -57,15 +60,19 @@ def multi_objective(trial):
         'subsample_freq': trial.suggest_int('subsample_freq', 0, 10),
 
         # 正则化参数
-        'lambda_l1': trial.suggest_float('lambda_l1', 1e-8, 5.0, log=True),
-        'lambda_l2': trial.suggest_float('lambda_l2', 1e-8, 5.0, log=True),
+        'lambda_l1': trial.suggest_float('lambda_l1', 1e-10, 1.0, log=True),
+        'lambda_l2': trial.suggest_float('lambda_l2', 1e-10, 5.0, log=True),
         'min_split_gain': trial.suggest_float('min_split_gain', 0.0, 0.5),
 
         # 学习率
-        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+        'n_estimators': trial.suggest_int('n_estimators', 500, 15000, log=True),
+
+
 
         # 固定参数
-        'n_estimators': 3000,
+        'objective': 'RMSE',      # ⭐ Huber损失：MAPE的稳定性+MSE的平滑
+        'metric': 'mape',
         'verbose': -1,
         'random_state': 42,
         'n_jobs': -1,
@@ -81,7 +88,7 @@ def multi_objective(trial):
     model.fit(
         X_train, y_train,
         eval_set=[(X_test, y_test)],
-        eval_metric='rmse',
+        eval_metric='mape',
         callbacks=[lgb.early_stopping(50, verbose=False)]
     )
 
@@ -89,11 +96,12 @@ def multi_objective(trial):
     y_pred = model.predict(X_test)
 
     # 计算两个目标
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    # rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mape = mean_absolute_percentage_error(y_test, y_pred) * 100  # sklearn返回小数，乘100变百分比
+    # mae = mean_absolute_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
-
     # 返回两个目标值
-    return rmse, r2
+    return mape, r2
 
 
 # ==================== 3. 创建多目标研究 ====================
@@ -183,9 +191,9 @@ final_params = best_balanced_trial.params.copy()
 learning_rate = final_params.pop('learning_rate')
 
 final_params.update({
-    'n_estimators': 5000,
+    'n_estimators': 2000,
     'learning_rate': learning_rate,
-    'verbose': 100,
+    'verbose': 1,
     'random_state': 42,
     'n_jobs': -1,
     'max_bin': 2,
@@ -200,7 +208,8 @@ final_model.fit(
     eval_metric='rmse',
     callbacks=[lgb.early_stopping(100, verbose=True)]
 )
-
+final_model.booster_.save_model('pareto_optimal_model.txt')
+print("✓ 模型已保存: pareto_optimal_model.txt")
 # ==================== 7. 最终评估 ====================
 print("\n" + "=" * 50)
 print("最终模型评估...")
